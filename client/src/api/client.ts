@@ -112,6 +112,8 @@ export const api = {
   // ===== Auth =====
   login: (username: string, password: string) =>
     apiFetch<any>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  register: (username: string, password: string) =>
+    apiFetch<any>("/auth/register", { method: "POST", body: JSON.stringify({ username, password }) }),
   me: () => apiFetch<any>("/auth/me"),
 
   // ===== Courses =====
@@ -195,6 +197,9 @@ export const api = {
   toggleTask: (id: number, done: boolean) => apiFetch(`/tasks/${id}/done?done=${done}`, { method: "PATCH" }),
   deleteTask: (id: number) => apiFetch(`/tasks/${id}`, { method: "DELETE" }),
 
+  // ===== Dashboard =====
+  getDashboard: () => apiFetch<any>("/dashboard/"),
+
   // ===== 语雀 =====
   yuque: {
     verify: () => yuqueFetch<any>("/yuque/verify", { method: "POST" }),
@@ -253,3 +258,4 @@ export const api = {
     search: (q: string) => triliumFetch<any[]>(`/trilium/search?query=${encodeURIComponent(q)}`),
   },
 };
+

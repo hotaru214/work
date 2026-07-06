@@ -3,6 +3,7 @@ import { setToken } from "../api/client";
 import { useSidebar } from "../contexts/SidebarContext";
 
 const navs = [
+  { to: "/dashboard", label: "仪表盘" },
   { to: "/courses", label: "课程" },
   { to: "/chat", label: "对话" },
   { to: "/kb", label: "知识库" },

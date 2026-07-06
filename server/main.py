@@ -2,7 +2,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, courses, materials, chat, plans, tasks, tags, posts, comments, notebooks, yuque, trilium
+from app.routers import auth, courses, materials, chat, plans, tasks, tags, posts, comments, notebooks, yuque, trilium, dashboard
 
 Base.metadata.create_all(bind=engine)
 
@@ -28,6 +28,7 @@ app.include_router(comments.router, prefix="/api/comments", tags=["comments"])
 app.include_router(notebooks.router, prefix="/api/notebooks", tags=["notebooks"])
 app.include_router(yuque.router, prefix="/api", tags=["yuque"])
 app.include_router(trilium.router, prefix="/api", tags=["trilium"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 
 
 @app.get("/")

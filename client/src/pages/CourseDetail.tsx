@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { api } from "../api/client";
+import { api, getToken } from "../api/client";
 
 export default function CourseDetail() {
   const { id } = useParams();
@@ -44,7 +44,7 @@ export default function CourseDetail() {
   return (
     <div className="p-6 max-w-3xl">
       <h1 className="text-2xl font-semibold">{course.name}</h1>
-      <div className="text-sm text-slate-600 mt-1">{course.teacher} 路 {course.semester}</div>
+      <div className="text-sm text-slate-600 mt-1">{course.teacher} · {course.semester}</div>
       <div className="text-slate-700 mt-3">{course.intro || "无简介"}</div>
 
       <div className="mt-6 flex gap-3 flex-wrap">
@@ -52,7 +52,7 @@ export default function CourseDetail() {
           开始课程对话
         </button>
         <Link to={`/forum?course_id=${courseId}`} className="bg-white border px-4 py-2 rounded hover:bg-slate-50 text-sm">
-          📢 课程讨论区
+          📙 课程讨论区
         </Link>
       </div>
 
@@ -66,18 +66,35 @@ export default function CourseDetail() {
         <div className="text-slate-500">暂无资料</div>
       ) : (
         <ul className="divide-y bg-white rounded shadow">
-          {materials.map((m) => (
+          {materials.map((m: any) => (
             <li key={m.id} className="px-4 py-3 flex justify-between items-center">
               <div>
                 <div className="font-medium">{m.filename}</div>
-                <div className="text-xs text-slate-500">{m.type} 路 {new Date(m.uploaded_at).toLocaleString()}</div>
+                <div className="text-xs text-slate-500">{m.type} · {new Date(m.uploaded_at).toLocaleString()}</div>
               </div>
-              <button
-                className="text-sm text-red-600 hover:underline"
-                onClick={async () => { await api.deleteMaterial(m.id); load(); }}
-              >
-                删除
-              </button>
+              <div className="flex gap-3">
+                <button
+                  className="text-sm text-blue-600 hover:underline"
+                  onClick={async () => {
+                    const token = getToken();
+                    const res = await fetch(`/api/materials/${m.id}/download`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (!res.ok) return alert("下载失败");
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, "_blank");
+                  }}
+                >
+                  查看/打印
+                </button>
+                <button
+                  className="text-sm text-red-600 hover:underline"
+                  onClick={async () => { await api.deleteMaterial(m.id); load(); }}
+                >
+                  删除
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -90,7 +107,7 @@ export default function CourseDetail() {
             {forumPosts.map((p: any) => (
               <Link key={p.id} to={`/forum/${p.id}`} className="block bg-white p-3 rounded shadow text-sm hover:shadow-md">
                 <span className="font-medium">{p.title}</span>
-                <span className="text-slate-400 ml-2">👍 {p.like_count} 💬 {p.comment_count}</span>
+                <span className="text-slate-400 ml-2">❤️ {p.like_count} 💬 {p.comment_count}</span>
               </Link>
             ))}
           </div>
