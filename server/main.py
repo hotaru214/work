@@ -2,7 +2,11 @@
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, courses, materials, chat, plans, tasks, tags, posts, comments, notebooks, yuque, trilium, dashboard, knowledge_base
+from app.routers.core import auth, courses, materials, chat, plans, tasks
+from app.routers.forum import posts, comments, tags
+from app.routers.kb import notebooks, knowledge_base
+from app.routers.integrations import yuque, trilium
+from app.routers.misc import dashboard
 
 Base.metadata.create_all(bind=engine)
 
