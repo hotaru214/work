@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pdftotext -f 28 -l 29 -layout \"大型程序设计实践2026.pdf\" -)",
+      "Bash(pdftotext -f 28 -l 29 -enc UTF-8 \"大型程序设计实践2026.pdf\" -)",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,'.'\\); import main; print\\('import OK'\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -m app.seed)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s -X POST http://localhost:8000/api/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"demo\",\"password\":\"demo123\"}')",
+      "Bash(python -m json.tool)",
+      "Bash(python -c ' *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

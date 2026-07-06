@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/router.tsx","./src/api/client.ts","./src/components/layout.tsx","./src/components/protectedroute.tsx","./src/pages/chat.tsx","./src/pages/coursedetail.tsx","./src/pages/courses.tsx","./src/pages/login.tsx","./src/pages/plan.tsx","./src/pages/profile.tsx"],"version":"5.9.3"}
