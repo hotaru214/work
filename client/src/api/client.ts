@@ -1,4 +1,4 @@
-﻿export const API_BASE = "/api";
+export const API_BASE = "/api";
 
 const TOKEN_KEY = "ch_token";
 const YUQUE_TOKEN_KEY = "yuque_token";
@@ -200,6 +200,26 @@ export const api = {
   // ===== Dashboard =====
   getDashboard: () => apiFetch<any>("/dashboard/"),
 
+  // ===== Knowledge Base (Trilium-style) =====
+  kb: {
+    roots: () => apiFetch<any[]>("/kb/roots"),
+    getNote: (noteId: string) => apiFetch<any>(`/kb/notes/${noteId}`),
+    getNoteContent: (noteId: string) => apiFetch<any>(`/kb/notes/${noteId}/content`),
+    getNoteTree: (noteId: string) => apiFetch<any[]>(`/kb/notes/${noteId}/tree`),
+    createNote: (parentNoteId: string, title: string, content: string = "", type: string = "text", mime: string = "text/html") =>
+      apiFetch<any>("/kb/notes", { method: "POST", body: JSON.stringify({ parent_note_id: parentNoteId, title, content, type, mime }) }),
+    updateContent: (noteId: string, data: any) =>
+      apiFetch<any>(`/kb/notes/${noteId}/content`, { method: "PUT", body: JSON.stringify(data) }),
+    deleteNote: (noteId: string) => apiFetch(`/kb/notes/${noteId}`, { method: "DELETE" }),
+    moveNote: (noteId: string, parentNoteId: string, notePosition: number = 0) =>
+      apiFetch<any>(`/kb/notes/${noteId}/move?parent_note_id=${parentNoteId}&note_position=${notePosition}`, { method: "PATCH" }),
+    search: (query: string) => apiFetch<any[]>(`/kb/search?query=${encodeURIComponent(query)}`),
+    getAttributes: (noteId: string) => apiFetch<any[]>(`/kb/notes/${noteId}/attributes`),
+    createAttribute: (noteId: string, name: string, value: string = "", type: string = "label") =>
+      apiFetch<any>("/kb/attributes", { method: "POST", body: JSON.stringify({ note_id: noteId, name, value, type }) }),
+    getRevisions: (noteId: string) => apiFetch<any[]>(`/kb/notes/${noteId}/revisions`),
+  },
+
   // ===== 语雀 =====
   yuque: {
     verify: () => yuqueFetch<any>("/yuque/verify", { method: "POST" }),
@@ -244,9 +264,13 @@ export const api = {
     rootChildren: () => triliumFetch<any[]>("/trilium/root/children"),
     getNote: (id: string) => triliumFetch<any>(`/trilium/notes/${id}`),
     getNoteContent: (id: string) => triliumFetch<any>(`/trilium/notes/${id}/content`),
-    getChildren: (id: string) => triliumFetch<any[]>(`/trilium/notes/${id}/children`),
-    createNote: (parentId: string, title: string, content: string = "", type: string = "text") => {
+    getNoteTree: (id: string, depth?: number) => {
+      const params = depth ? `?depth=${depth}` : "";
+      return triliumFetch<any[]>(`/trilium/notes/${id}/tree${params}`);
+    },
+    createNote: (parentId: string, title: string, content: string = "", type: string = "text", mime?: string) => {
       const params = new URLSearchParams({ parent_note_id: parentId, title, content, type });
+      if (mime) params.set("mime", mime);
       return triliumFetch<any>(`/trilium/notes?${params}`, { method: "POST" });
     },
     updateContent: (id: string, content: string, title: string = "") => {
@@ -254,8 +278,15 @@ export const api = {
       if (title) params.set("title", title);
       return triliumFetch<any>(`/trilium/notes/${id}/content?${params}`, { method: "PUT" });
     },
+    patchNote: (id: string, data: any) =>
+      triliumFetch<any>(`/trilium/notes/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     deleteNote: (id: string) => triliumFetch(`/trilium/notes/${id}`, { method: "DELETE" }),
     search: (q: string) => triliumFetch<any[]>(`/trilium/search?query=${encodeURIComponent(q)}`),
+    createBranch: (noteId: string, parentNoteId: string, notePosition?: number, prefix?: string) => {
+      const params = new URLSearchParams({ note_id: noteId, parent_note_id: parentNoteId });
+      if (notePosition !== undefined) params.set("note_position", String(notePosition));
+      if (prefix) params.set("prefix", prefix);
+      return triliumFetch<any>(`/trilium/branches?${params}`, { method: "POST" });
+    },
   },
 };
-

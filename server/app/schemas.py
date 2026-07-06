@@ -7,24 +7,19 @@ from pydantic import BaseModel, ConfigDict
 class UserBase(BaseModel):
     username: str
 
-
 class UserCreate(UserBase):
     password: str
 
-
 class UserLogin(UserBase):
     password: str
-
 
 class UserOut(UserBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
-
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-
 
 class CourseBase(BaseModel):
     name: str
@@ -32,16 +27,13 @@ class CourseBase(BaseModel):
     teacher: str = ""
     semester: str = ""
 
-
 class CourseCreate(CourseBase):
     pass
-
 
 class CourseOut(CourseBase):
     id: int
     user_id: int
     model_config = ConfigDict(from_attributes=True)
-
 
 class MaterialOut(BaseModel):
     id: int
@@ -51,10 +43,8 @@ class MaterialOut(BaseModel):
     uploaded_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-
 class ChatMessageIn(BaseModel):
     content: str
-
 
 class ChatMessageOut(BaseModel):
     id: int
@@ -64,7 +54,6 @@ class ChatMessageOut(BaseModel):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-
 class ChatSessionOut(BaseModel):
     id: int
     course_id: Optional[int]
@@ -72,32 +61,26 @@ class ChatSessionOut(BaseModel):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-
 class PlanBase(BaseModel):
     goal: str
     deadline: Optional[datetime] = None
     daily_minutes: int = 60
 
-
 class PlanCreate(PlanBase):
     pass
-
 
 class PlanOut(PlanBase):
     id: int
     user_id: int
     model_config = ConfigDict(from_attributes=True)
 
-
 class TaskBase(BaseModel):
     title: str
     due_date: Optional[datetime] = None
     plan_id: Optional[int] = None
 
-
 class TaskCreate(TaskBase):
     pass
-
 
 class TaskOut(TaskBase):
     id: int
@@ -105,32 +88,14 @@ class TaskOut(TaskBase):
     done: bool
     model_config = ConfigDict(from_attributes=True)
 
-
-class DashboardOut(BaseModel):
-    total_tasks: int
-    completed_tasks: int
-    pending_tasks: int
-    course_count: int
-    material_count: int
-    plan_count: int
-    today_tasks: list[TaskOut]
-    upcoming_tasks: list[TaskOut]
-    active_plans: list[PlanOut]
-    recent_sessions: list[ChatSessionOut]
-
-
 class Snippet(BaseModel):
     material_id: int
     filename: str
     text: str
 
-
-# ==================== Tag ====================
-
 class TagCreate(BaseModel):
     name: str
     color: str = "#6366f1"
-
 
 class TagOut(BaseModel):
     id: int
@@ -139,9 +104,6 @@ class TagOut(BaseModel):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-
-# ==================== Post ====================
-
 class PostCreate(BaseModel):
     title: str
     content: str = ""
@@ -149,12 +111,32 @@ class PostCreate(BaseModel):
     session_id: Optional[int] = None
     tag_ids: list[int] = []
 
-
 class PostUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     tag_ids: Optional[list[int]] = None
 
+class PostListItem(BaseModel):
+    id: int
+    user_id: int
+    course_id: Optional[int]
+    title: str
+    is_essence: bool
+    status: str
+    view_count: int
+    like_count: int
+    comment_count: int
+    created_at: datetime
+    author_name: str = ""
+    tags: list[TagOut] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class PostVoteOut(BaseModel):
+    id: int
+    post_id: int
+    user_id: int
+    value: int
+    model_config = ConfigDict(from_attributes=True)
 
 class PostOut(BaseModel):
     id: int
@@ -174,38 +156,10 @@ class PostOut(BaseModel):
     tags: list[TagOut] = []
     model_config = ConfigDict(from_attributes=True)
 
-
-class PostListItem(BaseModel):
-    id: int
-    user_id: int
-    course_id: Optional[int]
-    title: str
-    is_essence: bool
-    status: str
-    view_count: int
-    like_count: int
-    comment_count: int
-    created_at: datetime
-    author_name: str = ""
-    tags: list[TagOut] = []
-    model_config = ConfigDict(from_attributes=True)
-
-
-class PostVoteOut(BaseModel):
-    id: int
-    post_id: int
-    user_id: int
-    value: int
-    model_config = ConfigDict(from_attributes=True)
-
-
-# ==================== Comment ====================
-
 class CommentCreate(BaseModel):
     post_id: int
     content: str
     parent_id: Optional[int] = None
-
 
 class CommentOut(BaseModel):
     id: int
@@ -217,14 +171,10 @@ class CommentOut(BaseModel):
     author_name: str = ""
     model_config = ConfigDict(from_attributes=True)
 
-
-# ==================== Notebook ====================
-
 class NotebookCreate(BaseModel):
     name: str
     description: str = ""
     is_public: bool = False
-
 
 class NotebookOut(BaseModel):
     id: int
@@ -237,16 +187,12 @@ class NotebookOut(BaseModel):
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-
-# ==================== Doc ====================
-
 class DocCreate(BaseModel):
     title: str
     content: str = ""
     parent_id: Optional[int] = None
     is_public: bool = False
     tag_ids: list[int] = []
-
 
 class DocUpdate(BaseModel):
     title: Optional[str] = None
@@ -255,7 +201,6 @@ class DocUpdate(BaseModel):
     parent_id: Optional[int] = None
     sort_order: Optional[int] = None
     tag_ids: Optional[list[int]] = None
-
 
 class DocOut(BaseModel):
     id: int
@@ -272,11 +217,76 @@ class DocOut(BaseModel):
     tags: list[TagOut] = []
     model_config = ConfigDict(from_attributes=True)
 
-
 class DocTreeItem(BaseModel):
     id: int
     parent_id: Optional[int]
     title: str
     sort_order: int
     children: list["DocTreeItem"] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class DashboardOut(BaseModel):
+    total_tasks: int = 0
+    completed_tasks: int = 0
+    pending_tasks: int = 0
+    course_count: int = 0
+    material_count: int = 0
+    plan_count: int = 0
+    today_tasks: list[TaskOut] = []
+    upcoming_tasks: list[TaskOut] = []
+    active_plans: list[PlanOut] = []
+    recent_sessions: list[ChatSessionOut] = []
+
+
+# ==================== Knowledge Base (Trilium-style) ====================
+
+class KBNoteCreate(BaseModel):
+    parent_note_id: str
+    title: str
+    content: str = ""
+    type: str = "text"
+    mime: str = "text/html"
+
+class KBNoteUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    type: Optional[str] = None
+    mime: Optional[str] = None
+    is_deleted: Optional[bool] = None
+
+class KBAttributeCreate(BaseModel):
+    note_id: str
+    type: str = "label"
+    name: str
+    value: str = ""
+
+class KBNoteOut(BaseModel):
+    note_id: str
+    title: str
+    type: str
+    mime: str
+    is_protected: bool = False
+    is_deleted: bool = False
+    content: str = ""
+    created_at: datetime
+    updated_at: datetime
+    children: list["KBNoteOut"] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class KBBranchOut(BaseModel):
+    branch_id: str
+    note_id: str
+    parent_note_id: str
+    note_position: int
+    prefix: str
+    is_expanded: bool
+    model_config = ConfigDict(from_attributes=True)
+
+class KBAttributeOut(BaseModel):
+    attribute_id: str
+    note_id: str
+    type: str
+    name: str
+    value: str
+    position: int
     model_config = ConfigDict(from_attributes=True)

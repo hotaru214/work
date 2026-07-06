@@ -2,11 +2,11 @@
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, courses, materials, chat, plans, tasks, tags, posts, comments, notebooks, yuque, trilium, dashboard
+from app.routers import auth, courses, materials, chat, plans, tasks, tags, posts, comments, notebooks, yuque, trilium, dashboard, knowledge_base
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="课程学习助手 Agent 平台", version="0.3.0")
+app = FastAPI(title="课程学习助手 Agent 平台", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,8 +29,9 @@ app.include_router(notebooks.router, prefix="/api/notebooks", tags=["notebooks"]
 app.include_router(yuque.router, prefix="/api", tags=["yuque"])
 app.include_router(trilium.router, prefix="/api", tags=["trilium"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
+app.include_router(knowledge_base.router, prefix="/api", tags=["kb"])
 
 
 @app.get("/")
 def root():
-    return {"name": "course-helper-agent", "version": "0.3.0"}
+    return {"name": "course-helper-agent", "version": "0.4.0"}
