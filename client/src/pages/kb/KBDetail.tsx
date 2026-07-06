@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import { useSidebar } from "../../contexts/SidebarContext";
+import { mdToHtml, htmlToMd } from "../../utils/markdown";
 
 const CREATE_OPTIONS = [
   { type: "text", label: "新建文档", icon: "📄", desc: "创建富文本文档", mime: "text/html" },
@@ -40,15 +41,21 @@ export default function KBDetail() {
   const [showColor, setShowColor] = useState(false);
   const [showBgColor, setShowBgColor] = useState(false);
   const [showHeading, setShowHeading] = useState(false);
+  const [editorMode, setEditorMode] = useState<"rich" | "markdown">("rich");
   const [newTitle, setNewTitle] = useState("");
+  const [mdText, setMdText] = useState("");
 
   // Refs to avoid stale closures in save timer
   const titleRef = useRef(title);
   titleRef.current = title;
   const contentRef = useRef(content);
   contentRef.current = content;
+  const mdTextRef = useRef(mdText);
+  mdTextRef.current = mdText;
   const activeNoteIdRef = useRef(activeNoteId);
   activeNoteIdRef.current = activeNoteId;
+  const editorModeRef = useRef(editorMode);
+  editorModeRef.current = editorMode;
 
   const isBook = note?.type === "book" && !currentDocId;
 
@@ -113,7 +120,11 @@ export default function KBDetail() {
     saveTimerRef.current = window.setTimeout(async () => {
       const currentId = activeNoteIdRef.current;
       const currentTitle = titleRef.current;
-      const htmlContent = isBook ? undefined : (editorRef.current?.innerHTML || "");
+      const htmlContent = isBook ? undefined : (
+        editorModeRef.current === "markdown"
+          ? mdToHtml(mdTextRef.current)
+          : (editorRef.current?.innerHTML || "")
+      );
       setSaveStatus("保存中...");
       try {
         const data: any = { title: currentTitle };
@@ -193,6 +204,7 @@ export default function KBDetail() {
   }
 
   function getWordCount() {
+    if (editorMode === "markdown") return mdText.replace(/\s/g, "").length;
     return (editorRef.current?.innerText || "").replace(/\s/g, "").length;
   }
 
@@ -401,6 +413,8 @@ export default function KBDetail() {
               <button onClick={() => execCmd("insertHorizontalRule")} className="tb-btn" title="分割线">—</button>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
               <button onClick={() => execCmd("removeFormat")} className="tb-btn" title="清除格式"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 4h10l-3 9M12 18l-2 3"/><line x1="4" y1="4" x2="20" y2="20"/></svg></button>
+              <div className="w-px h-4 bg-slate-200 mx-0.5" />
+        editorModeRef.current === "markdown"
             </div>
 
             {/* Title bar */}
@@ -416,9 +430,19 @@ export default function KBDetail() {
 
             {/* Editor */}
             <div className="flex-1 overflow-auto bg-white relative">
-              <div ref={editorRef} className="w-full h-full p-6 pb-10 max-w-3xl mx-auto outline-none text-base leading-relaxed"
-                contentEditable suppressContentEditableWarning onInput={handleEditorInput}
-                style={{ minHeight: "100%" }} data-placeholder="开始写笔记..." />
+              {editorMode === "rich" ? (
+                <div ref={editorRef} className="w-full h-full p-6 pb-10 max-w-3xl mx-auto outline-none text-base leading-relaxed"
+                  contentEditable suppressContentEditableWarning onInput={handleEditorInput}
+                  style={{ minHeight: "100%" }} data-placeholder="开始写笔记..." />
+              ) : (
+                <textarea
+                  className="w-full h-full p-6 pb-10 max-w-3xl mx-auto outline-none text-base leading-relaxed font-mono resize-none border-0 focus:ring-0"
+                  value={mdText}
+                  onChange={(e) => { setMdText(e.target.value); scheduleSave(); }}
+                  style={{ minHeight: "100%" }}
+                  placeholder="使用 Markdown 语法编写..."
+                />
+              )}
               <div className="absolute bottom-3 right-4 text-[11px] text-slate-400 select-none pointer-events-none bg-white/80 px-2 py-0.5 rounded shadow-sm">
                 字数：{getWordCount()}
               </div>
