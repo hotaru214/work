@@ -152,38 +152,113 @@ export default function KBDetail() {
   }
 
   function handleHeading(tag: string) {
-    document.execCommand("formatBlock", false, "<" + tag + ">");
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current) {
+      const range = sel.getRangeAt(0);
+      let node: Node | null = range.commonAncestorContainer;
+      // Walk up to find the nearest block element
+      while (node && node !== editorRef.current && node.nodeType === Node.TEXT_NODE) {
+        node = node.parentNode;
+      }
+      if (node && node !== editorRef.current) {
+        const heading = document.createElement(tag);
+        heading.innerHTML = (node as HTMLElement).innerHTML;
+        (node as HTMLElement).parentNode?.replaceChild(heading, node);
+        // Move cursor into the heading
+        const newRange = document.createRange();
+        newRange.setStart(heading, 0);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      }
+    }
     setShowHeading(false);
     if (editorRef.current) editorRef.current.focus();
+    scheduleSave();
   }
-
   function handleFontSize(size: string) {
     const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      const span = document.createElement("span");
-      span.style.fontSize = size + "px";
-      try { sel.getRangeAt(0).surroundContents(span); } catch {}
+    if (sel && sel.rangeCount > 0 && editorRef.current) {
+      const range = sel.getRangeAt(0);
+      if (range.collapsed) {
+        // Select current word/character
+        (range as any).expand("word");
+      }
+      try {
+        const span = document.createElement("span");
+        span.style.fontSize = size + "px";
+        // Use extractContents + appendChild for robustness
+        const fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+        // Move cursor after the span
+        const newRange = document.createRange();
+        newRange.setStartAfter(span);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      } catch {}
     }
     setShowFontSize(false);
     if (editorRef.current) editorRef.current.focus();
+    scheduleSave();
   }
 
   function handleColor(color: string) {
-    document.execCommand("styleWithCSS", false, "true");
-    execCmd("foreColor", color);
+    const sel = window.getSelection()!;
+    if (sel.rangeCount > 0 && editorRef.current) {
+      const range = sel.getRangeAt(0);
+      if (range.collapsed) {
+        (range as any).expand("word");
+      }
+      try {
+        const span = document.createElement("span");
+        span.style.color = color;
+        const fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+        const newRange = document.createRange();
+        newRange.setStartAfter(span);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      } catch {}
+    }
     setShowColor(false);
+    if (editorRef.current) editorRef.current.focus();
+    scheduleSave();
   }
 
   function handleBgColor(color: string) {
-    document.execCommand("styleWithCSS", false, "true");
-    execCmd("hiliteColor", color);
+    const sel = window.getSelection()!;
+    if (sel.rangeCount > 0 && editorRef.current) {
+      const range = sel.getRangeAt(0);
+      if (range.collapsed) {
+        (range as any).expand("word");
+      }
+      try {
+        const span = document.createElement("span");
+        span.style.backgroundColor = color;
+        const fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+        const newRange = document.createRange();
+        newRange.setStartAfter(span);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      } catch {}
+    }
     setShowBgColor(false);
+    if (editorRef.current) editorRef.current.focus();
+    scheduleSave();
   }
 
   function handleImage() {
-    const url = prompt("请输入图片地址");
+    const url = prompt("请输入图片地址", "https://");
     if (url) execCmd("insertImage", url);
   }
+
 
   function createTable() {
     const rows = prompt("行数", "3");
@@ -336,7 +411,7 @@ export default function KBDetail() {
         ) : (
           <>
             {/* Toolbar */}
-                        <div ref={dropdownRef} className="px-2 py-1.5 border-b bg-white flex items-center gap-0.5 flex-wrap shrink-0 select-none overflow-x-auto">
+                        <div ref={dropdownRef} className="px-2 py-1.5 border-b bg-white flex items-center gap-0.5 shrink-0 select-none h-11 whitespace-nowrap">
               <button onClick={() => execCmd("undo")} className="tb-btn" title="撤销">↩</button>
               <button onClick={() => execCmd("redo")} className="tb-btn" title="重做">↪</button>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
@@ -375,9 +450,9 @@ export default function KBDetail() {
                 </button>
                 {showColor && (
                   <div className="absolute top-full left-0 z-50 mt-1 bg-white border rounded-lg shadow-lg p-2 animate-fade-in">
-                    <div className="grid grid-cols-8 gap-1">
+                    <div className="grid grid-cols-8 gap-4">
                       {["#000","#434343","#666","#999","#b7b7b7","#ccc","#d9d9d9","#fff","#e53e3e","#dd6b20","#d69e2e","#38a169","#319795","#3182ce","#5a67d8","#805ad5","#ffb3b3","#ffd699","#ffecb3","#b3ffcc","#b3ecff","#b3c2ff","#d4b3ff","#ffb3ec"].map(c => (
-                        <button key={c} onClick={() => { handleColor(c); setShowColor(false); }} className="w-5 h-5 rounded border border-slate-200 hover:scale-110 transition-transform" style={{backgroundColor:c}} title={c}/>
+                        <button key={c} onClick={() => { handleColor(c); setShowColor(false); }} className="w-6 h-6 rounded border border-slate-200 hover:scale-110 transition-transform" style={{backgroundColor:c}} title={c}/>
                       ))}
                     </div>
                   </div>
@@ -389,9 +464,9 @@ export default function KBDetail() {
                 </button>
                 {showBgColor && (
                   <div className="absolute top-full left-0 z-50 mt-1 bg-white border rounded-lg shadow-lg p-2 animate-fade-in">
-                    <div className="grid grid-cols-8 gap-1">
+                    <div className="grid grid-cols-8 gap-4">
                       {["#ffffcc","#d9f2d9","#d9e6f2","#e6d9f2","#f2d9d9","#f2eed9","#d9f2f2","#f2d9f2","#ffd9b3","#b3d9ff","#ffb3b3","#b3ffb3","#ffff99","#cc99ff","#99ccff","#ff99cc"].map(c => (
-                        <button key={c} onClick={() => { handleBgColor(c); setShowBgColor(false); }} className="w-5 h-5 rounded border border-slate-200 hover:scale-110 transition-transform" style={{backgroundColor:c}} title={c}/>
+                        <button key={c} onClick={() => { handleBgColor(c); setShowBgColor(false); }} className="w-6 h-6 rounded border border-slate-200 hover:scale-110 transition-transform" style={{backgroundColor:c}} title={c}/>
                       ))}
                     </div>
                   </div>
@@ -414,7 +489,6 @@ export default function KBDetail() {
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
               <button onClick={() => execCmd("removeFormat")} className="tb-btn" title="清除格式"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 4h10l-3 9M12 18l-2 3"/><line x1="4" y1="4" x2="20" y2="20"/></svg></button>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
-        editorModeRef.current === "markdown"
             </div>
 
             {/* Title bar */}
