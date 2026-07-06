@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --background: 255 255 255;       /* 白 */
+  --primary: 9 9 11;               /* slate-950 黑 */
+  --primary-foreground: 248 250 252; /* slate-100 白 */
+}
+
+@layer base {
+  .bg-background { background-color: rgb(var(--background)); }
+  .bg-primary { background-color: rgb(var(--primary)); }
+  .text-primary { color: rgb(var(--primary)); }
+  .text-primary-foreground { color: rgb(var(--primary-foreground)); }
+  .border-primary { border-color: rgb(var(--primary)); }
+}
+
 html, body, #root {
   height: 100%;
 }
@@ -18,4 +32,9 @@ html, body, #root {
     transform: translateY(0) scale(1);
     filter: blur(0);
   }
+}
+
+.sidebar-reveal {
+  max-width: calc(var(--sidebar-open, 0) * 220px);
+  opacity: var(--sidebar-open, 0);
 }

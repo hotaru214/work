@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { animate, stagger, splitText } from "animejs";
+import { cubicBezier } from "animejs/easings";
 import { useNavigate } from "react-router-dom";
 import BorderGlow from "../components/BorderGlow";
+import GlareHover from "../components/GlareHover";
+import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import SideRays from "../components/SideRays";
 import { api, setToken } from "../api/client";
 
@@ -41,6 +44,9 @@ export default function Login() {
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("demo");
   const [password, setPassword] = useState("demo123");
+  const [confirm, setConfirm] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,6 +55,8 @@ export default function Login() {
   const cardRef = useRef<HTMLDivElement>(null);
   const formContentRef = useRef<HTMLDivElement>(null);
   const authAnimationRef = useRef<{ cancel: () => void } | null>(null);
+  const heightAnimationRef = useRef<{ cancel: () => void } | null>(null);
+  const previousFormHeightRef = useRef<number | null>(null);
   const switchingRef = useRef(false);
   const switchDirectionRef = useRef(1);
   const [isSwitching, setIsSwitching] = useState(false);
@@ -91,6 +99,7 @@ export default function Login() {
       headlineIntro.cancel();
       formIntro.cancel();
       authAnimationRef.current?.cancel();
+      heightAnimationRef.current?.cancel();
       splitter.revert();
     };
   }, []);
@@ -104,6 +113,29 @@ export default function Login() {
     const items = Array.from(
       formContentRef.current.querySelectorAll<HTMLElement>("[data-auth-animate]")
     );
+
+    const previousHeight = previousFormHeightRef.current;
+    const nextHeight = formContentRef.current.scrollHeight;
+    if (previousHeight && Math.abs(nextHeight - previousHeight) > 1) {
+      heightAnimationRef.current?.cancel();
+      formContentRef.current.style.height = `${previousHeight}px`;
+      formContentRef.current.style.overflow = "hidden";
+      void formContentRef.current.offsetHeight;
+      heightAnimationRef.current = animate(formContentRef.current, {
+        height: [`${previousHeight}px`, `${nextHeight}px`],
+        duration: 620,
+        ease: cubicBezier(0.16, 1, 0.3, 1),
+        onComplete: () => {
+          if (!formContentRef.current) {
+            return;
+          }
+          formContentRef.current.style.height = "";
+          formContentRef.current.style.overflow = "";
+          heightAnimationRef.current = null;
+        },
+      });
+    }
+    previousFormHeightRef.current = null;
 
     authAnimationRef.current?.cancel();
     authAnimationRef.current = animate(items, {
@@ -129,7 +161,17 @@ export default function Login() {
     setLoading(true);
     try {
       if (mode === "register") {
-        await api.register(username, password);
+        if (password !== confirm) {
+          setError("两次输入的密码不一致");
+          setLoading(false);
+          return;
+        }
+        let avatarUrl: string | null = null;
+        if (avatarFile) {
+          const upload = await api.uploadRegisterAvatar(avatarFile);
+          avatarUrl = upload.avatar_url;
+        }
+        await api.register(username, password, username, avatarUrl);
       }
       const r = await api.login(username, password);
       setToken(r.access_token);
@@ -149,6 +191,9 @@ export default function Login() {
 
     const nextMode = mode === "login" ? "register" : "login";
     const direction = nextMode === "register" ? 1 : -1;
+    if (formContentRef.current) {
+      previousFormHeightRef.current = formContentRef.current.scrollHeight;
+    }
     const items = Array.from(
       formContentRef.current?.querySelectorAll<HTMLElement>("[data-auth-animate]") ?? []
     );
@@ -156,8 +201,15 @@ export default function Login() {
     switchDirectionRef.current = direction;
     switchingRef.current = true;
     setIsSwitching(true);
+    setConfirm("");
+    setAvatarFile(null);
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+      setAvatarPreview(null);
+    }
 
     authAnimationRef.current?.cancel();
+    heightAnimationRef.current?.cancel();
 
     if (!items.length) {
       setMode(nextMode);
@@ -225,13 +277,54 @@ export default function Login() {
                 </div>
 
                 <div data-auth-animate className="space-y-2">
+                  {mode === "register" && (
+                    <GlareHover
+                      width="100%"
+                      height="80px"
+                      background="rgba(255,255,255,0.04)"
+                      borderRadius="12px"
+                      borderColor="rgba(255,255,255,0.1)"
+                      glareColor="#ffffff"
+                      glareOpacity={0.22}
+                      glareAngle={-35}
+                      glareSize={180}
+                      transitionDuration={700}
+                      className="mb-4"
+                    >
+                      <div className="relative z-10 flex w-full items-center gap-4 p-3">
+                        <label className="relative flex h-14 w-14 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-violet-100 text-lg font-semibold text-violet-500 ring-1 ring-white/10 transition hover:bg-violet-200">
+                          {avatarPreview ? (
+                            <img src={avatarPreview} alt="头像预览" className="h-full w-full object-cover" />
+                          ) : (
+                            "学"
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] ?? null;
+                              setAvatarFile(file);
+                              if (avatarPreview) {
+                                URL.revokeObjectURL(avatarPreview);
+                              }
+                              setAvatarPreview(file ? URL.createObjectURL(file) : null);
+                            }}
+                          />
+                        </label>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-slate-200">上传头像</div>
+                        </div>
+                      </div>
+                    </GlareHover>
+                  )}
                   <label htmlFor="username" className="text-sm text-slate-300">用户名</label>
                   <input
                     id="username"
                     className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-slate-100 outline-none placeholder:text-slate-500 transition focus:border-amber-200/70 focus:ring-2 focus:ring-amber-200/20"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="请输入用户名"
+                    placeholder="请输入用户名（不可重复）"
                     autoComplete="username"
                   />
                 </div>
@@ -260,19 +353,46 @@ export default function Login() {
                   </div>
                 </div>
 
+                {mode === "register" && (
+                  <div data-auth-animate className="space-y-2">
+                    <label htmlFor="confirm" className="text-sm text-slate-300">确认密码</label>
+                    <div className="relative">
+                      <input
+                        id="confirm"
+                        type={showPw ? "text" : "password"}
+                        className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 pr-10 text-slate-100 outline-none placeholder:text-slate-500 transition focus:border-amber-200/70 focus:ring-2 focus:ring-amber-200/20"
+                        value={confirm}
+                        onChange={(e) => setConfirm(e.target.value)}
+                        placeholder="请再次输入密码"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPw((s) => !s)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:text-white"
+                        tabIndex={-1}
+                        aria-label={showPw ? "隐藏密码" : "显示密码"}
+                      >
+                        <EyeIcon open={showPw} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {error && (
                   <div data-auth-animate className="rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                     {error}
                   </div>
                 )}
 
-                <button
+                <InteractiveHoverButton
                   data-auth-animate
+                  type="submit"
                   disabled={loading || isSwitching}
-                  className="w-full rounded-lg bg-slate-100 py-2.5 font-medium text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full justify-center rounded-lg border-slate-200 py-2.5 text-sm font-medium text-slate-950 hover:text-white"
                 >
                   {loading ? (mode === "login" ? "登录中…" : "注册中…") : (mode === "login" ? "登录" : "注册并登录")}
-                </button>
+                </InteractiveHoverButton>
 
                 <div data-auth-animate className="text-center text-sm text-slate-400">
                   {mode === "login" ? "没有账号？" : "已有账号？"}

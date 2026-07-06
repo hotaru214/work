@@ -9,13 +9,21 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    nickname: str = "学习者"
+    avatar_url: Optional[str] = None
 
 class UserLogin(UserBase):
     password: str
 
 class UserOut(UserBase):
     id: int
+    nickname: str = "学习者"
+    avatar_url: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+class UserProfileUpdate(BaseModel):
+    nickname: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 class Token(BaseModel):
     access_token: str

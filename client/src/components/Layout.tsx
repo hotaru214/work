@@ -7,9 +7,10 @@ import {
   IconTargetArrow,
   IconUserCircle,
 } from "@tabler/icons-react";
-import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { setToken } from "../api/client";
+import { useEffect, useState, type CSSProperties } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { api, resolveAssetUrl, setToken } from "../api/client";
+import GooeyNav from "./GooeyNav";
 import { Sidebar, SidebarBody } from "./ui/sidebar";
 
 const navs = [
@@ -22,13 +23,41 @@ const navs = [
 
 export default function Layout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [profile, setProfile] = useState<{ username: string; nickname: string; avatar_url?: string | null } | null>(null);
+  const revealClass =
+    "sidebar-reveal min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-[320ms] ease-[cubic-bezier(0.16,1,0.3,1)]";
 
   function logout() {
     setToken(null);
     navigate("/login", { replace: true });
   }
+
+  const activeNavIndex = Math.max(
+    0,
+    navs.findIndex((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`))
+  );
+  const gooeyItems = navs.map((item) => {
+    const Icon = item.icon;
+    return {
+      label: item.label,
+      href: item.to,
+      icon: <Icon size={24} stroke={2} className="transition-colors" />,
+    };
+  });
+
+  useEffect(() => {
+    api.me()
+      .then((me) => setProfile(me))
+      .catch(() => setProfile(null));
+    const onProfileUpdated = (event: Event) => {
+      setProfile((event as CustomEvent).detail);
+    };
+    window.addEventListener("profile-updated", onProfileUpdated);
+    return () => window.removeEventListener("profile-updated", onProfileUpdated);
+  }, []);
 
   return (
     <div className="flex h-full overflow-hidden bg-white text-neutral-900">
@@ -46,6 +75,7 @@ export default function Layout() {
         <SidebarBody
           onMouseLeave={() => setAccountMenuOpen(false)}
           className="border-r border-neutral-200 bg-neutral-50 px-6 py-8 text-neutral-700"
+          style={{ "--sidebar-open": open ? 1 : 0 } as CSSProperties}
         >
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="mb-[58px] flex h-8 items-center gap-4">
@@ -54,46 +84,28 @@ export default function Layout() {
               </div>
               <div
                 className={[
-                  "min-w-0 truncate text-[17px] font-semibold tracking-tight text-black transition-opacity duration-150",
-                  open ? "w-auto opacity-100" : "pointer-events-none w-0 opacity-0",
+                  revealClass,
+                  "text-[17px] font-semibold tracking-tight text-black",
                 ].join(" ")}
               >
-                  学习实验室
+                学习实验室
               </div>
             </div>
 
-            <nav className="flex flex-1 flex-col gap-[29px]">
-              {navs.map((item) => {
-                const Icon = item.icon;
-
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    title={!open ? item.label : undefined}
-                    className={({ isActive }) =>
-                      [
-                        "group flex h-7 items-center gap-4 rounded-lg text-[17px] font-normal transition-colors",
-                        isActive
-                          ? "text-neutral-900"
-                          : "text-neutral-600 hover:text-neutral-900",
-                      ].join(" ")
-                    }
-                  >
-                    <span className="flex w-[30px] shrink-0 justify-center">
-                      <Icon size={24} stroke={2} className="text-neutral-600 transition-colors group-hover:text-neutral-900" />
-                    </span>
-                    <span
-                      className={[
-                        "min-w-0 truncate transition-opacity duration-150",
-                        open ? "w-auto opacity-100" : "pointer-events-none w-0 opacity-0",
-                      ].join(" ")}
-                    >
-                      {item.label}
-                    </span>
-                  </NavLink>
-                );
-              })}
+            <nav className="flex flex-1 flex-col">
+              <GooeyNav
+                items={gooeyItems}
+                activeIndex={activeNavIndex}
+                orientation="vertical"
+                particleCount={18}
+                particleDistances={[34, 6]}
+                particleR={68}
+                animationTime={460}
+                timeVariance={120}
+                colors={[1, 1, 1, 2, 2, 3]}
+                labelClassName={revealClass}
+                onItemClick={(item) => navigate(item.href)}
+              />
             </nav>
 
             <div className="relative mt-auto pb-1">
@@ -101,7 +113,7 @@ export default function Layout() {
                 <div className="absolute bottom-[58px] left-[-2px] w-[365px] animate-[account-menu-in_180ms_cubic-bezier(0.16,1,0.3,1)] rounded-2xl border border-neutral-200 bg-white/95 p-3 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur">
                   <div className="flex h-9 items-center gap-3 border-b border-neutral-200 px-2 pb-3 text-sm text-neutral-400">
                     <IconUserCircle size={18} stroke={1.8} />
-                    <span>已通过本地账号登录</span>
+                    <span>已通过用户名登录</span>
                   </div>
                   <button
                     type="button"
@@ -142,17 +154,20 @@ export default function Layout() {
               >
                 <span className="flex w-[30px] shrink-0 justify-center">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-sm font-semibold text-violet-600">
-                    学
+                    {profile?.avatar_url ? (
+                      <img src={resolveAssetUrl(profile.avatar_url) ?? ""} alt="" className="h-full w-full rounded-full object-cover" />
+                    ) : (
+                      "学"
+                    )}
                   </span>
                 </span>
                 <span
                   className={[
-                    "min-w-0 transition-opacity duration-150",
-                    open ? "w-auto opacity-100" : "pointer-events-none w-0 opacity-0",
+                    revealClass,
                   ].join(" ")}
                 >
-                    <span className="block truncate text-[16px] text-neutral-800">学习者</span>
-                    <span className="block truncate text-sm text-neutral-400">账户</span>
+                  <span className="block truncate text-[16px] text-neutral-800">{profile?.nickname || "学习者"}</span>
+                  <span className="block truncate text-sm text-neutral-400">{profile?.username || "用户名"}</span>
                 </span>
               </button>
             </div>
