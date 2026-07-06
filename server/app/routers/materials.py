@@ -1,7 +1,9 @@
+import mimetypes
 import os
 import shutil
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -40,6 +42,26 @@ def upload(course_id: int, file: UploadFile = File(...), type: str = "other",
     db.commit()
     db.refresh(material)
     return material
+
+
+@router.get("/{material_id}/download")
+def download_material(material_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    m = db.query(Material).join(Course).filter(Material.id == material_id, Course.user_id == user.id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="material not found")
+    if not os.path.exists(m.content_path):
+        raise HTTPException(status_code=404, detail="file not found on disk")
+
+    media_type, _ = mimetypes.guess_type(m.filename)
+    if media_type is None:
+        media_type = "application/octet-stream"
+
+    return FileResponse(
+        m.content_path,
+        media_type=media_type,
+        filename=m.filename,
+        headers={"Content-Disposition": f"inline; filename={m.filename}"},
+    )
 
 
 @router.get("/{material_id}", response_model=MaterialOut)

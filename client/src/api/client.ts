@@ -72,4 +72,5 @@ export const api = {
   toggleTask: (id: number, done: boolean) =>
     apiFetch(`/tasks/${id}/done?done=${done}`, { method: "PATCH" }),
   deleteTask: (id: number) => apiFetch(`/tasks/${id}`, { method: "DELETE" }),
+  getDashboard: () => apiFetch<any>("/dashboard/"),
 };

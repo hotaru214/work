@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { setToken } from "../api/client";
 
 const navs = [
+  { to: "/dashboard", label: "仪表盘" },
   { to: "/courses", label: "课程" },
   { to: "/chat", label: "对话" },
   { to: "/plan", label: "学习计划" },

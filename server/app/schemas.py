@@ -106,6 +106,19 @@ class TaskOut(TaskBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DashboardOut(BaseModel):
+    total_tasks: int
+    completed_tasks: int
+    pending_tasks: int
+    course_count: int
+    material_count: int
+    plan_count: int
+    today_tasks: list[TaskOut]
+    upcoming_tasks: list[TaskOut]
+    active_plans: list[PlanOut]
+    recent_sessions: list[ChatSessionOut]
+
+
 class Snippet(BaseModel):
     material_id: int
     filename: str

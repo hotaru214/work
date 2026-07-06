@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../api/client";
+import { api, getToken } from "../api/client";
 
 export default function CourseDetail() {
   const { id } = useParams();
@@ -64,12 +64,29 @@ export default function CourseDetail() {
                 <div className="font-medium">{m.filename}</div>
                 <div className="text-xs text-slate-500">{m.type} · {new Date(m.uploaded_at).toLocaleString()}</div>
               </div>
-              <button
-                className="text-sm text-red-600 hover:underline"
-                onClick={async () => { await api.deleteMaterial(m.id); load(); }}
-              >
-                删除
-              </button>
+              <div className="flex gap-3">
+                <button
+                  className="text-sm text-blue-600 hover:underline"
+                  onClick={async () => {
+                    const token = getToken();
+                    const res = await fetch(`/api/materials/${m.id}/download`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (!res.ok) return alert("下载失败");
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, "_blank");
+                  }}
+                >
+                  查看/打印
+                </button>
+                <button
+                  className="text-sm text-red-600 hover:underline"
+                  onClick={async () => { await api.deleteMaterial(m.id); load(); }}
+                >
+                  删除
+                </button>
+              </div>
             </li>
           ))}
         </ul>
