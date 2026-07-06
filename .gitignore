@@ -1,6 +1,7 @@
-# ===== Python (server/) =====
-**/__pycache__/
+# Python / FastAPI
+__pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
 .venv/
 venv/
@@ -10,9 +11,10 @@ ENV/
 .mypy_cache/
 .ruff_cache/
 .coverage
+coverage.xml
 htmlcov/
 
-# ===== Node (client/) =====
+# Node / Vite
 node_modules/
 dist/
 .vite/
@@ -22,25 +24,34 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# ===== 项目运行时产物 =====
-server/app.db
+# Local runtime data
+*.db
+*.sqlite
+*.sqlite3
 server/uploads/
 server/.env
 .env
+.env.local
+.env.*.local
 *.log
 
-# ===== IDE / 编辑器 =====
+# Generated caches
+.cache/
+tmp/
+temp/
+
+# IDE / editors
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# ===== 操作系统 =====
+# OS files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# ===== 其他 =====
-.cache/
-tmp/
-.claude
+# Local assistant/tooling state
+.claude/
+.codex/
+.agents/
