@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -110,3 +110,160 @@ class Snippet(BaseModel):
     material_id: int
     filename: str
     text: str
+
+
+# ==================== Tag ====================
+
+class TagCreate(BaseModel):
+    name: str
+    color: str = "#6366f1"
+
+
+class TagOut(BaseModel):
+    id: int
+    name: str
+    color: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== Post ====================
+
+class PostCreate(BaseModel):
+    title: str
+    content: str = ""
+    course_id: Optional[int] = None
+    session_id: Optional[int] = None
+    tag_ids: list[int] = []
+
+
+class PostUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    tag_ids: Optional[list[int]] = None
+
+
+class PostOut(BaseModel):
+    id: int
+    user_id: int
+    course_id: Optional[int]
+    title: str
+    content: str
+    session_id: Optional[int]
+    is_essence: bool
+    status: str
+    view_count: int
+    like_count: int
+    comment_count: int
+    created_at: datetime
+    updated_at: datetime
+    author_name: str = ""
+    tags: list[TagOut] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PostListItem(BaseModel):
+    id: int
+    user_id: int
+    course_id: Optional[int]
+    title: str
+    is_essence: bool
+    status: str
+    view_count: int
+    like_count: int
+    comment_count: int
+    created_at: datetime
+    author_name: str = ""
+    tags: list[TagOut] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PostVoteOut(BaseModel):
+    id: int
+    post_id: int
+    user_id: int
+    value: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== Comment ====================
+
+class CommentCreate(BaseModel):
+    post_id: int
+    content: str
+    parent_id: Optional[int] = None
+
+
+class CommentOut(BaseModel):
+    id: int
+    post_id: int
+    user_id: int
+    parent_id: Optional[int]
+    content: str
+    created_at: datetime
+    author_name: str = ""
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== Notebook ====================
+
+class NotebookCreate(BaseModel):
+    name: str
+    description: str = ""
+    is_public: bool = False
+
+
+class NotebookOut(BaseModel):
+    id: int
+    user_id: int
+    name: str
+    description: str
+    is_public: bool
+    doc_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== Doc ====================
+
+class DocCreate(BaseModel):
+    title: str
+    content: str = ""
+    parent_id: Optional[int] = None
+    is_public: bool = False
+    tag_ids: list[int] = []
+
+
+class DocUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    is_public: Optional[bool] = None
+    parent_id: Optional[int] = None
+    sort_order: Optional[int] = None
+    tag_ids: Optional[list[int]] = None
+
+
+class DocOut(BaseModel):
+    id: int
+    notebook_id: int
+    user_id: int
+    parent_id: Optional[int]
+    title: str
+    content: str
+    is_public: bool
+    sort_order: int
+    view_count: int
+    created_at: datetime
+    updated_at: datetime
+    tags: list[TagOut] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocTreeItem(BaseModel):
+    id: int
+    parent_id: Optional[int]
+    title: str
+    sort_order: int
+    children: list["DocTreeItem"] = []
+    model_config = ConfigDict(from_attributes=True)

@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+﻿import { useEffect, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 
 export default function Chat() {
   const { sessionId } = useParams();
+  const navigate = useNavigate();
   const [sid, setSid] = useState<number | null>(sessionId ? Number(sessionId) : null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [relatedPosts, setRelatedPosts] = useState<any[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   async function loadSessions() {
@@ -16,7 +18,12 @@ export default function Chat() {
   }
 
   async function loadMessages(id: number) {
-    setMessages(await api.listMessages(id));
+    const msgs = await api.listMessages(id);
+    setMessages(msgs);
+    try {
+      const rp = await api.sessionRelatedPosts(id);
+      setRelatedPosts(rp || []);
+    } catch { setRelatedPosts([]); }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }
 
@@ -27,6 +34,7 @@ export default function Chat() {
     const s = await api.createSession(null, "新对话");
     setSid(s.id);
     setMessages([]);
+    setRelatedPosts([]);
     loadSessions();
   }
 
@@ -72,12 +80,40 @@ export default function Chat() {
           ) : messages.length === 0 ? (
             <div className="text-slate-500">开始你的第一条消息</div>
           ) : (
-            messages.map((m, i) => (
-              <div key={i} className={`max-w-2xl ${m.role === "user" ? "ml-auto bg-slate-900 text-white" : "bg-white border"} rounded px-4 py-2`}>
-                <div className="text-xs opacity-60 mb-1">{m.role === "user" ? "我" : "Agent"}</div>
-                <div className="whitespace-pre-wrap">{m.content}</div>
+            <>
+              {messages.map((m, i) => (
+                <div key={i} className={`max-w-2xl ${m.role === "user" ? "ml-auto bg-slate-900 text-white" : "bg-white border"} rounded px-4 py-2`}>
+                  <div className="text-xs opacity-60 mb-1">{m.role === "user" ? "我" : "Agent"}</div>
+                  <div className="whitespace-pre-wrap">{m.content}</div>
+                </div>
+              ))}
+
+              {/* Publish to forum button */}
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => navigate(`/forum/new?session_id=${sid}`)}
+                  className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-700 px-3 py-1.5 rounded hover:bg-yellow-100"
+                >
+                  📢 发布此对话到讨论区
+                </button>
               </div>
-            ))
+
+              {/* Related posts */}
+              {relatedPosts.length > 0 && (
+                <div className="mt-4 bg-blue-50 border border-blue-100 rounded p-3">
+                  <div className="text-xs font-medium text-blue-700 mb-2">相关问题</div>
+                  {relatedPosts.map((p: any) => (
+                    <div
+                      key={p.id}
+                      onClick={() => navigate(`/forum/${p.id}`)}
+                      className="text-sm text-blue-600 hover:underline cursor-pointer py-0.5"
+                    >
+                      {p.title}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
           <div ref={bottomRef} />
         </div>
@@ -85,7 +121,7 @@ export default function Chat() {
           <textarea
             className="flex-1 border rounded px-3 py-2 text-sm resize-none"
             rows={2}
-            placeholder="输入消息…"
+            placeholder="输入消息..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {

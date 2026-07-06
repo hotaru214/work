@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+﻿import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { api } from "../api/client";
 
 export default function CourseDetail() {
@@ -8,6 +8,7 @@ export default function CourseDetail() {
   const navigate = useNavigate();
   const [course, setCourse] = useState<any>(null);
   const [materials, setMaterials] = useState<any[]>([]);
+  const [forumPosts, setForumPosts] = useState<any[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -17,6 +18,10 @@ export default function CourseDetail() {
     ]);
     setCourse(c);
     setMaterials(ms);
+    try {
+      const posts = await api.listPosts({ course_id: courseId, page_size: 5 });
+      setForumPosts(posts);
+    } catch { setForumPosts([]); }
   }
 
   useEffect(() => { load(); }, [courseId]);
@@ -34,18 +39,21 @@ export default function CourseDetail() {
     navigate(`/chat/${session.id}`);
   }
 
-  if (!course) return <div className="p-6">加载中…</div>;
+  if (!course) return <div className="p-6">加载中...</div>;
 
   return (
     <div className="p-6 max-w-3xl">
       <h1 className="text-2xl font-semibold">{course.name}</h1>
-      <div className="text-sm text-slate-600 mt-1">{course.teacher} · {course.semester}</div>
+      <div className="text-sm text-slate-600 mt-1">{course.teacher} 路 {course.semester}</div>
       <div className="text-slate-700 mt-3">{course.intro || "无简介"}</div>
 
-      <div className="mt-6 flex gap-3">
+      <div className="mt-6 flex gap-3 flex-wrap">
         <button onClick={startChat} className="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-800">
           开始课程对话
         </button>
+        <Link to={`/forum?course_id=${courseId}`} className="bg-white border px-4 py-2 rounded hover:bg-slate-50 text-sm">
+          📢 课程讨论区
+        </Link>
       </div>
 
       <h2 className="text-xl font-semibold mt-8 mb-3">学习资料</h2>
@@ -62,7 +70,7 @@ export default function CourseDetail() {
             <li key={m.id} className="px-4 py-3 flex justify-between items-center">
               <div>
                 <div className="font-medium">{m.filename}</div>
-                <div className="text-xs text-slate-500">{m.type} · {new Date(m.uploaded_at).toLocaleString()}</div>
+                <div className="text-xs text-slate-500">{m.type} 路 {new Date(m.uploaded_at).toLocaleString()}</div>
               </div>
               <button
                 className="text-sm text-red-600 hover:underline"
@@ -73,6 +81,20 @@ export default function CourseDetail() {
             </li>
           ))}
         </ul>
+      )}
+
+      {forumPosts.length > 0 && (
+        <>
+          <h2 className="text-xl font-semibold mt-8 mb-3">相关讨论</h2>
+          <div className="space-y-2">
+            {forumPosts.map((p: any) => (
+              <Link key={p.id} to={`/forum/${p.id}`} className="block bg-white p-3 rounded shadow text-sm hover:shadow-md">
+                <span className="font-medium">{p.title}</span>
+                <span className="text-slate-400 ml-2">👍 {p.like_count} 💬 {p.comment_count}</span>
+              </Link>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
