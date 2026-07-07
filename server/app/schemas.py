@@ -136,6 +136,9 @@ class PostListItem(BaseModel):
     comment_count: int
     created_at: datetime
     author_name: str = ""
+    author_username: str = ""
+    author_nickname: str = ""
+    author_avatar_url: Optional[str] = None
     tags: list[TagOut] = []
     model_config = ConfigDict(from_attributes=True)
 
@@ -161,6 +164,9 @@ class PostOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     author_name: str = ""
+    author_username: str = ""
+    author_nickname: str = ""
+    author_avatar_url: Optional[str] = None
     tags: list[TagOut] = []
     model_config = ConfigDict(from_attributes=True)
 

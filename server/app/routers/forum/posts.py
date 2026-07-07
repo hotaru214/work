@@ -11,6 +11,8 @@ router = APIRouter()
 
 
 def _post_to_item(post: Post, tags: list[Tag] = None) -> dict:
+    author = post.user
+    author_name = (author.nickname or author.username) if author else ""
     data = {
         "id": post.id,
         "user_id": post.user_id,
@@ -22,7 +24,10 @@ def _post_to_item(post: Post, tags: list[Tag] = None) -> dict:
         "like_count": post.like_count,
         "comment_count": post.comment_count,
         "created_at": post.created_at,
-        "author_name": post.user.username if post.user else "",
+        "author_name": author_name,
+        "author_username": author.username if author else "",
+        "author_nickname": author.nickname if author else "",
+        "author_avatar_url": author.avatar_url if author else None,
         "tags": tags or [],
     }
     return data
@@ -91,7 +96,10 @@ def create_post(body: PostCreate, user: User = Depends(get_current_user), db: Se
     tags = [pt.tag for pt in post.tags]
     result = PostOut(
         **{c.name: getattr(post, c.name) for c in Post.__table__.columns},
-        author_name=user.username,
+        author_name=user.nickname or user.username,
+        author_username=user.username,
+        author_nickname=user.nickname,
+        author_avatar_url=user.avatar_url,
         tags=tags,
     )
     return result
@@ -105,9 +113,13 @@ def get_post(post_id: int, user: User = Depends(get_current_user), db: Session =
     post.view_count += 1
     db.commit()
     tags = [pt.tag for pt in post.tags]
+    author_name = (post.user.nickname or post.user.username) if post.user else ""
     result = PostOut(
         **{c.name: getattr(post, c.name) for c in Post.__table__.columns},
-        author_name=post.user.username if post.user else "",
+        author_name=author_name,
+        author_username=post.user.username if post.user else "",
+        author_nickname=post.user.nickname if post.user else "",
+        author_avatar_url=post.user.avatar_url if post.user else None,
         tags=tags,
     )
     return result
@@ -131,9 +143,13 @@ def update_post(post_id: int, body: PostUpdate, user: User = Depends(get_current
     db.commit()
     db.refresh(post)
     tags = [pt.tag for pt in post.tags]
+    author_name = (post.user.nickname or post.user.username) if post.user else ""
     result = PostOut(
         **{c.name: getattr(post, c.name) for c in Post.__table__.columns},
-        author_name=post.user.username if post.user else "",
+        author_name=author_name,
+        author_username=post.user.username if post.user else "",
+        author_nickname=post.user.nickname if post.user else "",
+        author_avatar_url=post.user.avatar_url if post.user else None,
         tags=tags,
     )
     return result

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTags, useCreateTag, useUpdateTag, useDeleteTag } from "../hooks/api";
 import { useMutationToast } from "../components/ui/toast";
+import { GooeyInput } from "../components/ui/gooey-input";
 
 const PRESET_COLORS = [
   "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
@@ -88,8 +89,22 @@ export default function TagManage() {
       </div>
 
       <div className="mb-4">
-        <input className="w-full max-w-xs border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500"
-          placeholder="搜索标签..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <GooeyInput
+          placeholder="搜索标签..."
+          collapsedLabel="搜索"
+          value={search}
+          onValueChange={setSearch}
+          collapsedWidth={118}
+          expandedWidth={240}
+          expandedOffset={58}
+          bubbleOffsetY={0}
+          classNames={{
+            root: "justify-start",
+            trigger: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900 hover:bg-slate-800",
+            bubbleSurface: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900",
+            input: "text-white placeholder:text-white/55",
+          }}
+        />
       </div>
 
       {loading ? (
