@@ -165,7 +165,10 @@ export const api = {
   },
 
   // ===== Tags =====
-  listTags: () => apiFetch<any[]>("/tags/"),
+  listTags: (search?: string) => {
+    const q = search ? `?search=${encodeURIComponent(search)}` : "";
+    return apiFetch<any[]>(`/tags/${q}`);
+  },
   createTag: (data: { name: string; color?: string }) => apiFetch("/tags/", { method: "POST", body: JSON.stringify(data) }),
   updateTag: (id: number, data: { name: string; color?: string }) => apiFetch(`/tags/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteTag: (id: number) => apiFetch(`/tags/${id}`, { method: "DELETE" }),

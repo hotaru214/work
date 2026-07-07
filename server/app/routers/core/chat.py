@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ChatMessage, ChatSession, Course, Post, User
+from app.models import ChatMessage, ChatSession, Course, Post, PostTag, Tag, User
 from app.schemas import ChatMessageIn, ChatMessageOut, ChatSessionOut, PostOut
 from app.security import get_current_user
 from app.services.llm import LLMClient
@@ -105,7 +105,6 @@ def publish_session(session_id: int, title: str = "", tag_ids: str = "",
     db.commit()
     db.refresh(post)
 
-    from app.models import Tag, PostTag
     tags = [pt.tag for pt in post.tags]
     result = PostOut(
         **{c.name: getattr(post, c.name) for c in Post.__table__.columns},

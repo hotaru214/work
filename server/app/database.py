@@ -25,13 +25,18 @@ def ensure_local_schema() -> None:
         return
     inspector = inspect(engine)
     if "users" not in inspector.get_table_names():
-        return
-    columns = {column["name"] for column in inspector.get_columns("users")}
+        user_columns = set()
+    else:
+        user_columns = {column["name"] for column in inspector.get_columns("users")}
     with engine.begin() as conn:
-        if "nickname" not in columns:
+        if "nickname" not in user_columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN nickname VARCHAR(64) DEFAULT '学习者'"))
-        if "avatar_url" not in columns:
+        if "avatar_url" not in user_columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(512)"))
+        if "kb_notes" in inspector.get_table_names():
+            kb_note_columns = {column["name"] for column in inspector.get_columns("kb_notes")}
+            if "share_token" not in kb_note_columns:
+                conn.execute(text("ALTER TABLE kb_notes ADD COLUMN share_token VARCHAR(64)"))
 
 
 def get_db():

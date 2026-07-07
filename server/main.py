@@ -6,6 +6,7 @@ from app.config import settings
 from app.database import Base, engine, ensure_local_schema
 from app.routers.core import auth, courses, materials, chat, plans, tasks
 from app.routers.forum import posts, comments, tags
+from app.routers.integrations import yuque, trilium
 from app.routers.misc import dashboard
 from app.routers.kb import knowledge_base
 
@@ -33,6 +34,8 @@ app.include_router(posts.router, prefix="/api/posts", tags=["posts"])
 app.include_router(comments.router, prefix="/api/comments", tags=["comments"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(knowledge_base.router, prefix="/api", tags=["kb"])
+app.include_router(yuque.router, prefix="/api/yuque", tags=["yuque"])
+app.include_router(trilium.router, prefix="/api/trilium", tags=["trilium"])
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 

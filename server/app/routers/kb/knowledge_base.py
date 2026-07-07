@@ -1,5 +1,6 @@
 ﻿import string
 import random
+from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -29,6 +30,7 @@ def _note_to_out(note: KBNote, children: list = None) -> dict:
         "mime": note.mime,
         "isProtected": note.is_protected,
         "isDeleted": note.is_deleted,
+        "shareToken": note.share_token,
         "content": note.content or "",
         "dateCreated": note.created_at.isoformat(),
         "dateModified": note.updated_at.isoformat(),
@@ -235,6 +237,50 @@ def delete_note(note_id: str, user: User = Depends(get_current_user), db: Sessio
     _soft_delete(note_id)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/kb/notes/{note_id}/share", response_model=dict)
+def share_note(note_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    note = db.query(KBNote).filter(
+        KBNote.note_id == note_id,
+        KBNote.user_id == user.id,
+        KBNote.is_deleted == False,
+    ).first()
+    if not note:
+        raise HTTPException(404, "笔记不存在")
+    if not note.share_token:
+        token = uuid4().hex
+        while db.query(KBNote).filter(KBNote.share_token == token).first():
+            token = uuid4().hex
+        note.share_token = token
+        db.commit()
+        db.refresh(note)
+    return {"token": note.share_token, "note": _note_to_out(note, [])}
+
+
+@router.post("/kb/notes/{note_id}/unshare", response_model=dict)
+def unshare_note(note_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    note = db.query(KBNote).filter(
+        KBNote.note_id == note_id,
+        KBNote.user_id == user.id,
+        KBNote.is_deleted == False,
+    ).first()
+    if not note:
+        raise HTTPException(404, "笔记不存在")
+    note.share_token = None
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/public/notes/{token}", response_model=dict)
+def get_shared_note(token: str, db: Session = Depends(get_db)):
+    note = db.query(KBNote).filter(
+        KBNote.share_token == token,
+        KBNote.is_deleted == False,
+    ).first()
+    if not note:
+        raise HTTPException(404, "分享不存在")
+    return _note_to_out(note, _get_children_tree(note.note_id, db))
 
 # ==================== Recycle Bin ====================
 
