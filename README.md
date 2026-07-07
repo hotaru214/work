@@ -27,7 +27,7 @@ cp .env.example .env
 
 打开 `server/.env`，填入 Neon 数据库连接串（找项目所有者获取）：
 ```env
-DATABASE_URL=postgresql://用户名:密码@xxx.neon.tech/数据库名?sslmode=require
+DATABASE_URL=postgresql://neondb_owner:npg_QCn8PJAFcEZ0@ep-lively-cake-ao3x7jh4-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
 ```
 
 启动后端：
