@@ -1,4 +1,4 @@
-import os
+﻿import os
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -11,7 +11,12 @@ if settings.DATABASE_URL.startswith("sqlite"):
         connect_args={"check_same_thread": False},
     )
 else:
-    engine = create_engine(settings.DATABASE_URL)
+    engine = create_engine(
+        settings.DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -19,23 +24,22 @@ Base = declarative_base()
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
 
-def ensure_local_schema() -> None:
-    """Small SQLite-friendly schema patching until a real migration tool is added."""
-    if not settings.DATABASE_URL.startswith("sqlite"):
-        return
+def ensure_schema() -> None:
+    """Auto-migrate missing columns (works with both SQLite and PostgreSQL)."""
     inspector = inspect(engine)
     if "users" not in inspector.get_table_names():
-        user_columns = set()
-    else:
-        user_columns = {column["name"] for column in inspector.get_columns("users")}
+        return
+
     with engine.begin() as conn:
-        if "nickname" not in user_columns:
+        user_cols = {c["name"] for c in inspector.get_columns("users")}
+        if "nickname" not in user_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN nickname VARCHAR(64) DEFAULT '学习者'"))
-        if "avatar_url" not in user_columns:
+        if "avatar_url" not in user_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(512)"))
+
         if "kb_notes" in inspector.get_table_names():
-            kb_note_columns = {column["name"] for column in inspector.get_columns("kb_notes")}
-            if "share_token" not in kb_note_columns:
+            kb_cols = {c["name"] for c in inspector.get_columns("kb_notes")}
+            if "share_token" not in kb_cols:
                 conn.execute(text("ALTER TABLE kb_notes ADD COLUMN share_token VARCHAR(64)"))
 
 

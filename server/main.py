@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.database import Base, engine, ensure_local_schema
+from app.database import Base, engine, ensure_schema
 from app.routers.core import auth, courses, materials, chat, plans, tasks
 from app.routers.forum import posts, comments, tags
 from app.routers.integrations import yuque, trilium
@@ -11,7 +11,7 @@ from app.routers.misc import dashboard
 from app.routers.kb import knowledge_base
 
 Base.metadata.create_all(bind=engine)
-ensure_local_schema()
+ensure_schema()
 
 app = FastAPI(title="课程学习助手 Agent 平台", version="0.4.0")
 
