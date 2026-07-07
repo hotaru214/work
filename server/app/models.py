@@ -21,8 +21,6 @@ class User(Base):
     posts = relationship("Post", back_populates="user", cascade="all, delete-orphan")
     post_votes = relationship("PostVote", back_populates="user", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="user", cascade="all, delete-orphan")
-    notebooks = relationship("Notebook", back_populates="user", cascade="all, delete-orphan")
-    docs = relationship("Doc", back_populates="user", cascade="all, delete-orphan")
     kb_notes = relationship("KBNote", back_populates="user", cascade="all, delete-orphan")
 
 
@@ -173,56 +171,16 @@ class PostTag(Base):
     tag = relationship("Tag")
 
 
-# ==================== Legacy Notebook/Doc (kept for existing routes) ====================
 
-class DocTag(Base):
-    __tablename__ = "doc_tags"
+class KBNoteTag(Base):
+    __tablename__ = "kb_note_tags"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    doc_id: Mapped[int] = mapped_column(ForeignKey("docs.id", ondelete="CASCADE"))
+    note_id: Mapped[str] = mapped_column(ForeignKey("kb_notes.note_id", ondelete="CASCADE"))
     tag_id: Mapped[int] = mapped_column(ForeignKey("tags.id", ondelete="CASCADE"))
 
-    doc = relationship("Doc", back_populates="tags")
+    note = relationship("KBNote", back_populates="note_tags")
     tag = relationship("Tag")
-
-
-class Notebook(Base):
-    __tablename__ = "notebooks"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    name: Mapped[str] = mapped_column(String(128))
-    description: Mapped[str] = mapped_column(Text, default="")
-    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    user = relationship("User")
-    docs = relationship("Doc", back_populates="notebook", cascade="all, delete-orphan")
-
-
-class Doc(Base):
-    __tablename__ = "docs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    notebook_id: Mapped[int] = mapped_column(ForeignKey("notebooks.id", ondelete="CASCADE"))
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey("docs.id", ondelete="CASCADE"), nullable=True)
-    title: Mapped[str] = mapped_column(String(255))
-    content: Mapped[str] = mapped_column(Text, default="")
-    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    view_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    user = relationship("User")
-    notebook = relationship("Notebook", back_populates="docs")
-    tags = relationship("DocTag", back_populates="doc", cascade="all, delete-orphan")
-    children = relationship("Doc", back_populates="parent", cascade="all", passive_deletes=True)
-
-
-Doc.parent = relationship("Doc", back_populates="children", remote_side="Doc.id")
 
 # ==================== Knowledge Base (Trilium-style) ====================
 
@@ -256,6 +214,7 @@ class KBNote(Base):
                             cascade="all, delete-orphan")
     attributes = relationship("KBAttribute", back_populates="note", cascade="all, delete-orphan")
     revisions = relationship("KBRevision", back_populates="note", cascade="all, delete-orphan")
+    note_tags = relationship("KBNoteTag", back_populates="note", cascade="all, delete-orphan")
 
 
 class KBBranch(Base):

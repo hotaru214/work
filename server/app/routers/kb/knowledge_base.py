@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.database import get_db
-from app.models import User, KBNote, KBBranch, KBAttribute, KBRevision
+from app.models import User, KBNote, KBBranch, KBAttribute, KBRevision, Tag, KBNoteTag
 from app.schemas import (
     KBNoteCreate, KBNoteUpdate, KBNoteOut,
     KBBranchOut, KBAttributeCreate, KBAttributeOut,
@@ -422,6 +422,45 @@ def search_notes(
     ).limit(50).all()
 
     return [_note_to_out(n, []) for n in notes]
+
+
+
+# ==================== Note Tags ====================
+
+@router.get("/kb/notes/{note_id}/tags", response_model=list)
+def get_note_tags(note_id: str, db: Session = Depends(get_db)):
+    """Get tags for a knowledge base note."""
+    tags = db.query(Tag).join(KBNoteTag).filter(KBNoteTag.note_id == note_id).all()
+    return [{"id": t.id, "name": t.name, "color": t.color} for t in tags]
+
+
+@router.post("/kb/notes/{note_id}/tags", response_model=dict)
+def add_note_tag(note_id: str, tag_id: int = Query(...), db: Session = Depends(get_db)):
+    """Add a tag to a knowledge base note."""
+    existing = db.query(KBNoteTag).filter(
+        KBNoteTag.note_id == note_id,
+        KBNoteTag.tag_id == tag_id
+    ).first()
+    if existing:
+        raise HTTPException(400, "标签已存在")
+    nt = KBNoteTag(note_id=note_id, tag_id=tag_id)
+    db.add(nt)
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/kb/notes/{note_id}/tags/{tag_id}")
+def remove_note_tag(note_id: str, tag_id: int, db: Session = Depends(get_db)):
+    """Remove a tag from a knowledge base note."""
+    nt = db.query(KBNoteTag).filter(
+        KBNoteTag.note_id == note_id,
+        KBNoteTag.tag_id == tag_id
+    ).first()
+    if not nt:
+        raise HTTPException(404, "标签不存在")
+    db.delete(nt)
+    db.commit()
+    return {"ok": True}
 
 
 

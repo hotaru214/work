@@ -1,4 +1,4 @@
-export const API_BASE = "/api";
+﻿export const API_BASE = "/api";
 export const SERVER_BASE = API_BASE.replace(/\/api$/, "");
 
 const TOKEN_KEY = "ch_token";
@@ -167,6 +167,7 @@ export const api = {
   // ===== Tags =====
   listTags: () => apiFetch<any[]>("/tags/"),
   createTag: (data: { name: string; color?: string }) => apiFetch("/tags/", { method: "POST", body: JSON.stringify(data) }),
+  updateTag: (id: number, data: { name: string; color?: string }) => apiFetch(`/tags/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteTag: (id: number) => apiFetch(`/tags/${id}`, { method: "DELETE" }),
 
   // ===== Posts (Forum) =====
@@ -176,6 +177,7 @@ export const api = {
     if (params.course_id) q.set("course_id", String(params.course_id));
     if (params.tag_id) q.set("tag_id", String(params.tag_id));
     if (params.page) q.set("page", String(params.page));
+    if (params.search) q.set("search", params.search);
     if (params.page_size) q.set("page_size", String(params.page_size));
     return apiFetch<any[]>(`/posts/?${q.toString()}`);
   },
@@ -243,6 +245,9 @@ export const api = {
     createAttribute: (noteId: string, name: string, value: string = "", type: string = "label") =>
       apiFetch<any>("/kb/attributes", { method: "POST", body: JSON.stringify({ note_id: noteId, name, value, type }) }),
     getRevisions: (noteId: string) => apiFetch<any[]>(`/kb/notes/${noteId}/revisions`),
+    getNoteTags: (noteId: string) => apiFetch<any[]>(`/kb/notes/${noteId}/tags`),
+    addNoteTag: (noteId: string, tagId: number) => apiFetch<any>(`/kb/notes/${noteId}/tags?tag_id=${tagId}`, { method: "POST" }),
+    removeNoteTag: (noteId: string, tagId: number) => apiFetch(`/kb/notes/${noteId}/tags/${tagId}`, { method: "DELETE" }),
     trash: () => apiFetch<any[]>("/kb/trash"),
     restoreNote: (noteId: string) => apiFetch<any>(`/kb/notes/${noteId}/restore`, { method: "POST" }),
   },

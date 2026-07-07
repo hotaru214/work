@@ -179,59 +179,10 @@ class CommentOut(BaseModel):
     author_name: str = ""
     model_config = ConfigDict(from_attributes=True)
 
-class NotebookCreate(BaseModel):
-    name: str
-    description: str = ""
-    is_public: bool = False
 
-class NotebookOut(BaseModel):
-    id: int
-    user_id: int
-    name: str
-    description: str
-    is_public: bool
-    doc_count: int = 0
-    created_at: datetime
-    updated_at: datetime
-    model_config = ConfigDict(from_attributes=True)
+# ==================== Knowledge Base (Trilium-style) ====================
 
-class DocCreate(BaseModel):
-    title: str
-    content: str = ""
-    parent_id: Optional[int] = None
-    is_public: bool = False
-    tag_ids: list[int] = []
 
-class DocUpdate(BaseModel):
-    title: Optional[str] = None
-    content: Optional[str] = None
-    is_public: Optional[bool] = None
-    parent_id: Optional[int] = None
-    sort_order: Optional[int] = None
-    tag_ids: Optional[list[int]] = None
-
-class DocOut(BaseModel):
-    id: int
-    notebook_id: int
-    user_id: int
-    parent_id: Optional[int]
-    title: str
-    content: str
-    is_public: bool
-    sort_order: int
-    view_count: int
-    created_at: datetime
-    updated_at: datetime
-    tags: list[TagOut] = []
-    model_config = ConfigDict(from_attributes=True)
-
-class DocTreeItem(BaseModel):
-    id: int
-    parent_id: Optional[int]
-    title: str
-    sort_order: int
-    children: list["DocTreeItem"] = []
-    model_config = ConfigDict(from_attributes=True)
 
 class DashboardOut(BaseModel):
     total_tasks: int = 0
@@ -244,9 +195,6 @@ class DashboardOut(BaseModel):
     upcoming_tasks: list[TaskOut] = []
     active_plans: list[PlanOut] = []
     recent_sessions: list[ChatSessionOut] = []
-
-
-# ==================== Knowledge Base (Trilium-style) ====================
 
 class KBNoteCreate(BaseModel):
     parent_note_id: str

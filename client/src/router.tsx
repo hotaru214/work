@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import KBList from "./pages/kb/KBList";
 import KBDetail from "./pages/kb/KBDetail";
 import ForumList from "./pages/forum/ForumList";
+import TagManage from "./pages/TagManage";
 import PostDetail from "./pages/forum/PostDetail";
 import PostEditor from "./pages/forum/PostEditor";
 
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
       { path: "chat/:sessionId", element: <Chat /> },
       { path: "plan", element: <Plan /> },
       { path: "profile", element: <Profile /> },
+      { path: "tags", element: <TagManage /> },
       { path: "dashboard", element: <Dashboard /> },
 
       // Knowledge Base

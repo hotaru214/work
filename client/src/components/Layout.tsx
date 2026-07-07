@@ -1,10 +1,11 @@
-import {
+﻿import {
   IconBook2,
   IconChartBar,
   IconDatabase,
   IconLogout,
   IconMessageCircle,
   IconTargetArrow,
+  IconTags,
   IconUserCircle,
   IconUsers,
 } from "@tabler/icons-react";
@@ -21,6 +22,7 @@ const navs = [
   { to: "/kb", label: "知识库", icon: IconDatabase },
   { to: "/plan", label: "学习计划", icon: IconTargetArrow },
   { to: "/forum", label: "讨论区", icon: IconUsers },
+  { to: "/tags", label: "标签管理", icon: IconTags },
   { to: "/profile", label: "个人中心", icon: IconUserCircle },
 ];
 

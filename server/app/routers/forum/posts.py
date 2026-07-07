@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+﻿from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, true
 
@@ -34,6 +34,7 @@ def list_posts(
     course_id: int | None = None,
     tag_id: int | None = None,
     page: int = Query(1, ge=1),
+    search: str | None = None,
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -43,6 +44,11 @@ def list_posts(
         q = q.filter(Post.course_id == course_id)
     if tag_id is not None:
         q = q.join(PostTag).filter(PostTag.tag_id == tag_id)
+
+    if search:
+        from sqlalchemy import exists
+        tag_match = exists().where(PostTag.post_id == Post.id, Tag.id == PostTag.tag_id, Tag.name.ilike(f"%{search}%"))
+        q = q.filter(Post.title.ilike(f"%{search}%") | tag_match)
 
     if sort == "essence":
         q = q.filter(Post.is_essence == True).order_by(desc(Post.like_count), desc(Post.created_at))

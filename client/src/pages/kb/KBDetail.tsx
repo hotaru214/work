@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+﻿import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import { useSidebar } from "../../contexts/SidebarContext";
@@ -46,6 +46,9 @@ export default function KBDetail() {
   const [mdText, setMdText] = useState("");
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [noteTags, setNoteTags] = useState<any[]>([]);
+  const [allTags, setAllTags] = useState<any[]>([]);
+  const [showTagPicker, setShowTagPicker] = useState(false);
 
   // Refs to avoid stale closures in save timer
   const titleRef = useRef(title);
@@ -94,6 +97,30 @@ export default function KBDetail() {
       if (notebookId) loadTree();
     }
   }, [activeNoteId, notebookId]);
+  
+  // Load tags when note changes
+  useEffect(() => {
+    if (activeNoteId && !isBook) {
+      api.kb.getNoteTags(activeNoteId).then(setNoteTags).catch(() => {});
+      api.listTags().then(setAllTags).catch(() => {});
+    }
+  }, [activeNoteId, isBook]);
+
+  async function handleAddTag(tagId: number) {
+    try {
+      await api.kb.addNoteTag(activeNoteId, tagId);
+      const tags = await api.kb.getNoteTags(activeNoteId);
+      setNoteTags(tags);
+    } catch { alert("添加标签失败"); }
+    setShowTagPicker(false);
+  }
+
+  async function handleRemoveTag(tagId: number) {
+    try {
+      await api.kb.removeNoteTag(activeNoteId, tagId);
+      setNoteTags(prev => prev.filter(t => t.id !== tagId));
+    } catch { alert("移除标签失败"); }
+  }
 
   useEffect(() => {
     // Set content only when not a book
@@ -515,7 +542,8 @@ export default function KBDetail() {
             </div>
 
             {/* Title bar */}
-            <div className="px-4 py-3 border-b bg-white flex items-center gap-3 shrink-0">
+            <div className="px-4 py-3 border-b bg-white shrink-0">
+              <div className="flex items-center gap-3">
               <input className="flex-1 text-lg font-semibold border-none outline-none bg-transparent min-w-0"
                 value={title} onChange={handleTitleChange} placeholder="标题" />
               {saveStatus && (
@@ -523,8 +551,25 @@ export default function KBDetail() {
                   {saveStatus}
                 </span>
               )}
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                {noteTags.map((t: any) => (
+                  <span key={t.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80"
+                    style={{ backgroundColor: t.color + "20", color: t.color }}
+                    onClick={() => handleRemoveTag(t.id)}
+                    title="点击移除">
+                    {t.name}
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </span>
+                ))}
+                <button onClick={() => setShowTagPicker(true)}
+                  className="text-xs text-slate-400 hover:text-blue-500 transition-colors px-1.5 py-0.5 rounded hover:bg-blue-50"
+                  title="添加标签">
+                  + 标签
+                </button>
+              </div>
             </div>
-
             {/* Editor */}
             <div className="flex-1 overflow-auto bg-white relative">
               {editorMode === "rich" ? (
@@ -550,6 +595,32 @@ export default function KBDetail() {
 
       {!subSidebarOpen && (<SubToggle />)}
 
+            {/* Tag Picker */}
+      {showTagPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowTagPicker(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-slate-800 mb-4">选择标签</h3>
+            <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+              {allTags.filter((t: any) => !noteTags.find((nt: any) => nt.id === t.id)).length === 0 ? (
+                <div className="text-sm text-slate-400 py-4 w-full text-center">没有可用的标签</div>
+              ) : (
+                allTags.filter((t: any) => !noteTags.find((nt: any) => nt.id === t.id)).map((t: any) => (
+                  <button key={t.id} onClick={() => handleAddTag(t.id)}
+                    className="px-3 py-1.5 rounded-lg text-sm border hover:shadow-sm transition-all"
+                    style={{ borderColor: t.color + "40", backgroundColor: t.color + "10", color: t.color }}>
+                    {t.name}
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="flex justify-end mt-4">
+              <button onClick={() => setShowTagPicker(false)}
+                className="px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {showShareModal && shareToken && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowShareModal(false)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
