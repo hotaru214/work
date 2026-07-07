@@ -6,13 +6,11 @@ import {
   IconMessageCircle,
   IconTargetArrow,
   IconUserCircle,
-  IconNews,
   IconUsers,
 } from "@tabler/icons-react";
 import { useEffect, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api, resolveAssetUrl, setToken } from "../api/client";
-import { useSidebar } from "../contexts/SidebarContext";
 import GooeyNav from "./GooeyNav";
 import { Sidebar, SidebarBody } from "./ui/sidebar";
 
@@ -25,7 +23,7 @@ const navs = [
   { to: "/forum", label: "讨论区", icon: IconUsers },
   { to: "/profile", label: "个人中心", icon: IconUserCircle },
 ];
-];
+
 
 export default function Layout() {
   const navigate = useNavigate();
