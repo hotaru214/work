@@ -3,6 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import { useSidebar } from "../../contexts/SidebarContext";
 import { mdToHtml, htmlToMd } from "../../utils/markdown";
+import VirtualTree from "../../components/VirtualTree";
+import { DetailSkeleton } from "../../components/skeleton/Skeletons";
+import { useMutationToast } from "../../components/ui/toast";
+import { useAutosaveDraft } from "../../hooks/useAutosaveDraft";
+import { useKbNote, useKbTree, usePrefetchKbNote, useTags } from "../../hooks/api";
+import { useQueryClient } from "@tanstack/react-query";
 
 const CREATE_OPTIONS = [
   { type: "text", label: "新建文档", icon: "📄", desc: "创建富文本文档", mime: "text/html" },
@@ -22,15 +28,19 @@ export default function KBDetail() {
   const activeNoteId = currentDocId || notebookId || "";
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
+  const prefetchKbNote = usePrefetchKbNote();
   const { mainSidebarOpen, subSidebarOpen, toggleSubSidebar, setSubSidebarOpen } = useSidebar();
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const [note, setNote] = useState<any>(null);
-  const [tree, setTree] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: note, isLoading: loading } = useKbNote(activeNoteId);
+  const { data: tree = [] } = useKbTree(notebookId);
+  const { data: allTags = [] } = useTags();
+  const isBook = note?.type === "book" && !currentDocId;
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
   const [saveStatus, setSaveStatus] = useState<"" | "保存中..." | "已保存">("");
@@ -47,8 +57,13 @@ export default function KBDetail() {
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [noteTags, setNoteTags] = useState<any[]>([]);
-  const [allTags, setAllTags] = useState<any[]>([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [hasLocalChanges, setHasLocalChanges] = useState(false);
+  const draft = useAutosaveDraft(
+    `draft:kb:${activeNoteId || "none"}`,
+    { title, content, mdText, editorMode },
+    hasLocalChanges && !!activeNoteId && !isBook
+  );
 
   // Refs to avoid stale closures in save timer
   const titleRef = useRef(title);
@@ -62,28 +77,6 @@ export default function KBDetail() {
   const editorModeRef = useRef(editorMode);
   editorModeRef.current = editorMode;
 
-  const isBook = note?.type === "book" && !currentDocId;
-
-  async function loadNote() {
-    if (!activeNoteId) return;
-    setLoading(true);
-    try {
-      const n = await api.kb.getNote(activeNoteId);
-      setNote(n);
-      setTitle(n.title || "");
-      setContent(n.content || "");
-    } catch { setNote(null); }
-    finally { setLoading(false); }
-  }
-
-  async function loadTree() {
-    if (!notebookId) return;
-    try {
-      const t = await api.kb.getNoteTree(notebookId);
-      setTree(Array.isArray(t) ? t : []);
-    } catch { setTree([]); }
-  }
-
   useEffect(() => {
     // Clear any pending save when navigating to a different note
     if (saveTimerRef.current) {
@@ -91,18 +84,26 @@ export default function KBDetail() {
       saveTimerRef.current = 0;
     }
     setSaveStatus("");
+    setHasLocalChanges(false);
     if (activeNoteId) {
       setSubSidebarOpen(true);
-      loadNote();
-      if (notebookId) loadTree();
     }
   }, [activeNoteId, notebookId]);
+
+  useEffect(() => {
+    if (!note) return;
+    const saved = draft.readDraft();
+    setTitle(saved?.title ?? note.title ?? "");
+    const nextContent = saved?.content ?? note.content ?? "";
+    setContent(nextContent);
+    setMdText(saved?.mdText ?? htmlToMd(nextContent));
+    if (saved?.editorMode) setEditorMode(saved.editorMode);
+  }, [note?.noteId]);
   
   // Load tags when note changes
   useEffect(() => {
     if (activeNoteId && !isBook) {
       api.kb.getNoteTags(activeNoteId).then(setNoteTags).catch(() => {});
-      api.listTags().then(setAllTags).catch(() => {});
     }
   }, [activeNoteId, isBook]);
 
@@ -111,7 +112,7 @@ export default function KBDetail() {
       await api.kb.addNoteTag(activeNoteId, tagId);
       const tags = await api.kb.getNoteTags(activeNoteId);
       setNoteTags(tags);
-    } catch { alert("添加标签失败"); }
+    } catch { toast.error("添加标签失败"); }
     setShowTagPicker(false);
   }
 
@@ -119,7 +120,7 @@ export default function KBDetail() {
     try {
       await api.kb.removeNoteTag(activeNoteId, tagId);
       setNoteTags(prev => prev.filter(t => t.id !== tagId));
-    } catch { alert("移除标签失败"); }
+    } catch { toast.error("移除标签失败"); }
   }
 
   useEffect(() => {
@@ -145,6 +146,7 @@ export default function KBDetail() {
 
   const scheduleSave = useCallback(() => {
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    setHasLocalChanges(true);
     setSaveStatus("");
     saveTimerRef.current = window.setTimeout(async () => {
       const currentId = activeNoteIdRef.current;
@@ -160,6 +162,10 @@ export default function KBDetail() {
         if (htmlContent !== undefined) data.content = htmlContent;
         await api.kb.updateContent(currentId, data);
         if (htmlContent !== undefined) setContent(htmlContent);
+        draft.clearDraft();
+        setHasLocalChanges(false);
+        queryClient.invalidateQueries({ queryKey: ["kb-note", currentId] });
+        queryClient.invalidateQueries({ queryKey: ["kb-tree", notebookId] });
         setSaveStatus("已保存");
         saveTimerRef.current = 0;
         setTimeout(() => setSaveStatus(""), 2000);
@@ -290,7 +296,7 @@ export default function KBDetail() {
       setShareToken(result.share_token);
       setShowShareModal(true);
     } catch {
-      alert("分享失败");
+      toast.error("分享失败");
     }
   }
 
@@ -300,7 +306,9 @@ export default function KBDetail() {
       await api.unshareNote(currentDocId);
       setShareToken(null);
       setShowShareModal(false);
-    } catch {}
+    } catch {
+      toast.error("取消分享失败");
+    }
   }
 
 
@@ -333,26 +341,19 @@ export default function KBDetail() {
     return (editorRef.current?.innerText || "").replace(/\s/g, "").length;
   }
 
-    function handleTreeSelect(noteId: string) {
-    const isFolder = note?.type === "book" && note?.noteId === noteId;
-    if (isFolder) {
-      navigate("/kb/" + noteId);
-    } else {
-      navigate("/kb/" + notebookId + "/doc/" + noteId);
-    }
-  }
-
   async function handleCreate() {
     if (!newTitle.trim() || !notebookId) return;
     const opt = CREATE_OPTIONS.find((o) => o.type === createType)!;
     try {
       const result = await api.kb.createNote(notebookId, newTitle.trim(), "", createType, opt.mime);
       setNewTitle(""); setShowCreateModal(false); setShowCreateMenu(false);
-      loadTree();
+      queryClient.invalidateQueries({ queryKey: ["kb-tree", notebookId] });
       if (createType === "text" || createType === "code" || createType === "mermaid") {
         navigate(`/kb/${notebookId}/doc/${result.note.noteId}`);
       }
-    } catch { console.error("create failed"); }
+    } catch {
+      toast.error("创建失败");
+    }
   }
 
   function openCreateModal(type: string) {
@@ -362,31 +363,15 @@ export default function KBDetail() {
     setShowCreateModal(true);
   }
 
-  function renderTree(items: any[], depth = 0) {
-    return items.map((item: any) => {
-      const isActive = item.noteId === activeNoteId;
-      const icons: Record<string, string> = { text: "📄", code: "💻", book: "📁", mermaid: "📊", "relation-map": "🔗" };
-      return (
-        <div key={item.noteId}>
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer rounded text-sm group transition-colors ${isActive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-100 text-slate-700"}`}
-            style={{ paddingLeft: `${12 + depth * 16}px` }}
-            onClick={() => {
-              if (item.type === "book") navigate(`/kb/${item.noteId}`);
-              else navigate(`/kb/${notebookId}/doc/${item.noteId}`);
-            }}>
-            <span className="text-xs shrink-0">{icons[item.type] || "📄"}</span>
-            <span className="truncate flex-1">{item.title}</span>
-          </div>
-          {item.children?.length > 0 && renderTree(item.children, depth + 1)}
-        </div>
-      );
-    });
+  function handleTreeSelect(item: any) {
+    if (item.type === "book") navigate(`/kb/${item.noteId}`);
+    else navigate(`/kb/${notebookId}/doc/${item.noteId}`);
   }
 
   function handleLink() { const url = prompt("输入链接地址：", "https://"); if (url) execCmd("createLink", url); }
   
 
-  if (loading) return <div className="flex items-center justify-center h-full text-slate-500">加载中...</div>;
+  if (loading) return <DetailSkeleton />;
   if (!note) return <div className="flex items-center justify-center h-full text-slate-400">笔记不存在</div>;
 
   function SubToggle() {
@@ -440,10 +425,17 @@ export default function KBDetail() {
               </div>
             )}
           </div>
-          <div className="py-1">
+          <div className="h-full py-1">
             {tree.length === 0 ? (
               <div className="text-xs text-slate-400 text-center py-8 px-4">暂无内容<br />点击上方 + 创建</div>
-            ) : renderTree(tree)}
+            ) : (
+              <VirtualTree
+                items={tree}
+                activeId={activeNoteId}
+                onSelect={handleTreeSelect}
+                onPrefetch={(item) => prefetchKbNote(item.noteId)}
+              />
+            )}
           </div>
         </div>
       </div>

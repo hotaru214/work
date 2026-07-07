@@ -49,6 +49,21 @@ export function setYuqueToken(t: string | null) {
   else localStorage.removeItem(YUQUE_TOKEN_KEY);
 }
 
+export class ApiError extends Error {
+  status: number | "network";
+  constructor(status: number | "network", message: string, cause?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    if (cause !== undefined) (this as any).cause = cause;
+  }
+  get isAuth(): boolean { return this.status === 401; }
+  get isForbidden(): boolean { return this.status === 403; }
+  get isNotFound(): boolean { return this.status === 404; }
+  get isServer(): boolean { return typeof this.status === "number" && this.status >= 500; }
+  get isNetwork(): boolean { return this.status === "network"; }
+}
+
 export async function apiFetch<T = any>(
   path: string,
   init: RequestInit = {}
@@ -59,15 +74,31 @@ export async function apiFetch<T = any>(
   if (init.body && typeof init.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  } catch (e: any) {
+    throw new ApiError("network", "网络异常，请检查连接后重试", e);
+  }
   if (res.status === 401) {
     setToken(null);
-    window.location.href = "/login";
-    throw new Error("unauthorized");
+    if (!window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+    throw new ApiError(401, "登录已过期，请重新登录");
+  }
+  if (res.status === 403) {
+    throw new ApiError(403, "无权限执行此操作");
+  }
+  if (res.status === 404) {
+    throw new ApiError(404, "资源不存在");
+  }
+  if (res.status >= 500) {
+    throw new ApiError(res.status, "服务暂时不可用，请重试");
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${text}`);
+    throw new ApiError(res.status, text || `请求失败 (${res.status})`);
   }
   if (res.status === 204) return undefined as any;
   return res.json();
@@ -76,7 +107,7 @@ export async function apiFetch<T = any>(
 /** Fetch with Yuque token header */
 async function yuqueFetch<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   const yuqueToken = getYuqueToken();
-  if (!yuqueToken) throw new Error("未连接语雀");
+  if (!yuqueToken) throw new ApiError(403, "未连接语雀");
   const headers = new Headers(init.headers || {});
   headers.set("X-Yuque-Token", yuqueToken);
   if (init.body && typeof init.body === "string" && !headers.has("Content-Type")) {
@@ -84,10 +115,18 @@ async function yuqueFetch<T = any>(path: string, init: RequestInit = {}): Promis
   }
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  } catch (e: any) {
+    throw new ApiError("network", "网络异常", e);
+  }
+  if (res.status === 401) {
+    throw new ApiError(401, "语雀 token 已失效");
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${text}`);
+    throw new ApiError(res.status, text || `语雀请求失败 (${res.status})`);
   }
   if (res.status === 204) return undefined as any;
   return res.json();
@@ -97,7 +136,7 @@ async function yuqueFetch<T = any>(path: string, init: RequestInit = {}): Promis
 async function triliumFetch<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   const triliumUrl = getTriliumUrl();
   const triliumToken = getTriliumToken();
-  if (!triliumUrl || !triliumToken) throw new Error("未连接 Trilium");
+  if (!triliumUrl || !triliumToken) throw new ApiError(403, "未连接 Trilium");
   const headers = new Headers(init.headers || {});
   headers.set("X-Trilium-Url", triliumUrl);
   headers.set("X-Trilium-Token", triliumToken);
@@ -106,10 +145,18 @@ async function triliumFetch<T = any>(path: string, init: RequestInit = {}): Prom
   }
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  } catch (e: any) {
+    throw new ApiError("network", "网络异常", e);
+  }
+  if (res.status === 401) {
+    throw new ApiError(401, "Trilium token 已失效");
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${text}`);
+    throw new ApiError(res.status, text || `Trilium 请求失败 (${res.status})`);
   }
   if (res.status === 204) return undefined as any;
   return res.json();

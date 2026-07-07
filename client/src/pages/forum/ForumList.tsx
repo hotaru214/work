@@ -1,31 +1,21 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api } from "../../api/client";
+import { usePosts, usePrefetchPost } from "../../hooks/api";
+import { ListSkeleton } from "../../components/skeleton/Skeletons";
 
 export default function ForumList() {
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const sort = searchParams.get("sort") || "latest";
   const search = searchParams.get("search") || "";
   const [inputVal, setInputVal] = useState(search);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const prefetchPost = usePrefetchPost();
 
-  async function load() {
-    setLoading(true);
-    try {
-      const p = await api.listPosts({
-        sort,
-        search: search || undefined,
-        page_size: 50,
-      });
-      setPosts(p);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, [sort, search]);
+  const { data: posts = [], isLoading: loading } = usePosts({
+    sort,
+    search: search || undefined,
+    page_size: 50,
+  });
 
   function setSort(s: string) {
     setSearchParams((prev) => { prev.set("sort", s); return prev; });
@@ -70,13 +60,19 @@ export default function ForumList() {
       </div>
 
       {loading ? (
-        <div className="text-slate-500">加载中...</div>
+        <ListSkeleton rows={5} />
       ) : posts.length === 0 ? (
         <div className="text-slate-500">暂无帖子，快来发布第一条吧</div>
       ) : (
         <div className="space-y-3">
           {posts.map((p: any) => (
-            <Link to={`/forum/${p.id}`} key={p.id} className="block bg-white p-4 rounded shadow hover:shadow-md transition">
+            <Link
+              to={`/forum/${p.id}`}
+              key={p.id}
+              onMouseEnter={() => prefetchPost(p.id)}
+              onFocus={() => prefetchPost(p.id)}
+              className="block bg-white p-4 rounded shadow hover:shadow-md transition"
+            >
               <div className="flex items-center gap-2">
                 <span className="font-medium text-lg">{p.title}</span>
                 {p.is_essence && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">精华</span>}

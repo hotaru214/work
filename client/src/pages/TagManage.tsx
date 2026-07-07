@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api } from "../api/client";
+import { useTags, useCreateTag, useUpdateTag, useDeleteTag } from "../hooks/api";
+import { useMutationToast } from "../components/ui/toast";
 
 const PRESET_COLORS = [
   "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
@@ -8,24 +9,25 @@ const PRESET_COLORS = [
 ];
 
 export default function TagManage() {
-  const [tags, setTags] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingTag, setEditingTag] = useState<any | null>(null);
   const [name, setName] = useState("");
   const [color, setColor] = useState("#6366f1");
   const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await api.listTags(search || undefined);
-      setTags(Array.isArray(data) ? data : []);
-    } catch { setTags([]); }
-    finally { setLoading(false); }
-  }
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(search), 250);
+    return () => clearTimeout(id);
+  }, [search]);
 
-  useEffect(() => { load(); }, [search]);
+  const { data: rawTags, isLoading: loading } = useTags(debounced || undefined);
+  const tags = Array.isArray(rawTags) ? rawTags : [];
+
+  const toast = useMutationToast();
+  const createMut = useCreateTag();
+  const updateMut = useUpdateTag();
+  const deleteMut = useDeleteTag();
 
   function openCreate() {
     setEditingTag(null);
@@ -44,25 +46,29 @@ export default function TagManage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
+    toast.start(editingTag ? "更新中…" : "创建中…");
     try {
       if (editingTag) {
-        await api.updateTag(editingTag.id, { name: name.trim(), color });
+        await updateMut.mutateAsync({ id: editingTag.id, data: { name: name.trim(), color } });
       } else {
-        await api.createTag({ name: name.trim(), color });
+        await createMut.mutateAsync({ name: name.trim(), color });
       }
       setShowModal(false);
-      load();
+      toast.success(editingTag ? "已更新标签" : "已创建标签");
     } catch (err: any) {
-      alert(err.message || "操作失败");
+      toast.error(err.message || "操作失败");
     }
   }
 
   async function handleDelete(tag: any) {
     if (!confirm(`确认删除标签「${tag.name}」？`)) return;
+    toast.start("删除中…");
     try {
-      await api.deleteTag(tag.id);
-      load();
-    } catch { alert("删除失败"); }
+      await deleteMut.mutateAsync(tag.id);
+      toast.success("已删除标签");
+    } catch (err: any) {
+      toast.error(err.message || "删除失败");
+    }
   }
 
   return (

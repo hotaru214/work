@@ -1,44 +1,35 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api/client";
+import { CardGridSkeleton } from "../../components/skeleton/Skeletons";
+import { useMutationToast } from "../../components/ui/toast";
+import { useKbRoots, useKbTrash, usePrefetchKbNote } from "../../hooks/api";
 
 export default function KBList() {
   const navigate = useNavigate();
-  const [notes, setNotes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
+  const prefetchKbNote = usePrefetchKbNote();
+  const { data: notes = [], isLoading: loading } = useKbRoots();
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [showTrash, setShowTrash] = useState(false);
-  const [trashItems, setTrashItems] = useState<any[]>([]);
-  const [trashLoading, setTrashLoading] = useState(false);
+  const { data: trashItems = [], isLoading: trashLoading, refetch: refetchTrash } = useKbTrash(showTrash);
   async function handleDelete(e: React.MouseEvent, noteId: string, title: string) {
     e.stopPropagation();
     if (!confirm(`确认删除知识库「${title}」？该操作将同时删除其所有子内容。`)) return;
     try {
       await api.kb.deleteNote(noteId);
-      await load();
+      queryClient.invalidateQueries({ queryKey: ["kb-roots"] });
+      queryClient.invalidateQueries({ queryKey: ["kb-trash"] });
+      toast.success("已删除知识库");
     } catch (err) {
       console.error("delete failed", err);
-      alert("删除失败");
+      toast.error("删除失败");
     }
   }
-
-
-
-  async function load() {
-    setLoading(true);
-    try {
-      const roots = await api.kb.roots();
-      setNotes(Array.isArray(roots) ? roots : []);
-    } catch {
-      setNotes([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, []);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -46,8 +37,11 @@ export default function KBList() {
     try {
       const result = await api.kb.createNote("__root__", name.trim(), desc.trim(), "book");
       setName(""); setDesc(""); setShowModal(false);
+      queryClient.invalidateQueries({ queryKey: ["kb-roots"] });
       navigate(`/kb/${result.note.noteId}`);
-    } catch { console.error("create failed"); }
+    } catch {
+      toast.error("创建失败");
+    }
   }
 
   function fmtDate(d: string) {
@@ -67,22 +61,18 @@ export default function KBList() {
 
   async function openTrash() {
     setShowTrash(true);
-    setTrashLoading(true);
-    try {
-      const items = await api.kb.trash();
-      setTrashItems(Array.isArray(items) ? items : []);
-    } catch { setTrashItems([]); }
-    finally { setTrashLoading(false); }
+    refetchTrash();
   }
 
   async function restoreFromTrash(noteId: string) {
     try {
       await api.kb.restoreNote(noteId);
-      await openTrash();
-      await load();
+      queryClient.invalidateQueries({ queryKey: ["kb-trash"] });
+      queryClient.invalidateQueries({ queryKey: ["kb-roots"] });
+      toast.success("已恢复");
     } catch (err) {
       console.error("restore failed", err);
-      alert("恢复失败");
+      toast.error("恢复失败");
     }
   }
 
@@ -110,18 +100,16 @@ export default function KBList() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-slate-400">
-          <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          加载中...
-        </div>
+        <CardGridSkeleton cards={8} />
       ) : notes.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {notes.map((n: any) => (
             <div key={n.noteId}
-              className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-blue-300 cursor-pointer transition-all group relative" onClick={() => navigate(`/kb/${n.noteId}`)}>
+              className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-blue-300 cursor-pointer transition-all group relative"
+              onMouseEnter={() => prefetchKbNote(n.noteId)}
+              onFocus={() => prefetchKbNote(n.noteId)}
+              onClick={() => navigate(`/kb/${n.noteId}`)}
+            >
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-3xl">{getNoteIcon(n.type)}</span>
                 <div className="flex-1 min-w-0">

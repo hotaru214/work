@@ -1,21 +1,20 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { useSessions } from "../hooks/api";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function Chat() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [sid, setSid] = useState<number | null>(sessionId ? Number(sessionId) : null);
-  const [sessions, setSessions] = useState<any[]>([]);
+  const { data: sessions = [] } = useSessions();
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState<any[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  async function loadSessions() {
-    setSessions(await api.listSessions());
-  }
 
   async function loadMessages(id: number) {
     const msgs = await api.listMessages(id);
@@ -27,7 +26,6 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }
 
-  useEffect(() => { loadSessions(); }, []);
   useEffect(() => { if (sid) loadMessages(sid); }, [sid]);
 
   async function newSession() {
@@ -35,7 +33,8 @@ export default function Chat() {
     setSid(s.id);
     setMessages([]);
     setRelatedPosts([]);
-    loadSessions();
+    queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
+    navigate(`/chat/${s.id}`);
   }
 
   async function send() {

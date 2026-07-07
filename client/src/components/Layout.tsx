@@ -11,7 +11,8 @@
 } from "@tabler/icons-react";
 import { useEffect, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { api, resolveAssetUrl, setToken } from "../api/client";
+import { resolveAssetUrl, setToken } from "../api/client";
+import { useMe } from "../hooks/api";
 import GooeyNav from "./GooeyNav";
 import { Sidebar, SidebarBody } from "./ui/sidebar";
 
@@ -54,10 +55,13 @@ export default function Layout() {
     };
   });
 
+  const { data: profileData } = useMe();
   useEffect(() => {
-    api.me()
-      .then((me) => setProfile(me))
-      .catch(() => setProfile(null));
+    if (profileData) setProfile(profileData);
+  }, [profileData]);
+
+  // 仍保留：其他页面 dispatch 后立即同步（避免缓存失效延迟）
+  useEffect(() => {
     const onProfileUpdated = (event: Event) => {
       setProfile((event as CustomEvent).detail);
     };

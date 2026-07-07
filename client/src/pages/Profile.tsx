@@ -1,18 +1,26 @@
 ﻿import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, getYuqueToken, setYuqueToken, getTriliumUrl, setTriliumUrl, getTriliumToken, setTriliumToken, resolveAssetUrl } from "../api/client";
+import { useMe, useCourses, useTasks, useToggleTask, useDeleteTask } from "../hooks/api";
+import { useToast, useMutationToast } from "../components/ui/toast";
 import { Check, X } from "lucide-react";
 import { InteractiveHoverButton } from "../components/ui/interactive-hover-button";
 
 export default function Profile() {
-  const [me, setMe] = useState<{ id: number; username: string; nickname: string; avatar_url?: string | null } | null>(null);
+  const queryClient = useQueryClient();
   const [nickname, setNickname] = useState("学习者");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [editingNickname, setEditingNickname] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
-  const [courses, setCourses] = useState(0);
-  const [tasks, setTasks] = useState<any[]>([]);
+  const { data: me } = useMe();
+  const { data: courses } = useCourses();
+  const coursesCount = courses?.length ?? 0;
+  const { data: tasks } = useTasks();
+  const toggleTaskMut = useToggleTask();
+  const deleteTaskMut = useDeleteTask();
+  const toast = useMutationToast();
   const [yuqueToken, setLocalYuqueToken] = useState(getYuqueToken() || "");
   const [yuqueUser, setYuqueUser] = useState<any>(null);
   const [yuqueVerifying, setYuqueVerifying] = useState(false);
@@ -25,22 +33,17 @@ export default function Profile() {
   const [triliumError, setTriliumError] = useState("");
   const hasProfileChanges = !!avatarFile || nickname !== (me?.nickname || "学习者");
 
+  // 同步 me 数据到本地状态
+  useEffect(() => {
+    if (me) setNickname(me.nickname || "学习者");
+  }, [me]);
+
     useEffect(() => {
     if (getTriliumUrl() && getTriliumToken()) {
       api.trilium.verify()
         .then((r: any) => { setTriliumInfo(r); setTriliumConnected(true); })
         .catch(() => { setTriliumConnected(false); setTriliumToken(""); setTriliumUrl(""); });
     }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      const current = await api.me();
-      setMe(current);
-      setNickname(current.nickname || "学习者");
-      setCourses((await api.listCourses()).length);
-      setTasks(await api.listTasks());
-    })();
   }, []);
 
   // Check if already connected
@@ -53,8 +56,11 @@ export default function Profile() {
   }, []);
 
   async function toggle(id: number, done: boolean) {
-    await api.toggleTask(id, done);
-    setTasks(await api.listTasks());
+    try {
+      await toggleTaskMut.mutateAsync({ id, done });
+    } catch (e: any) {
+      toast.error(e.message || "操作失败");
+    }
   }
 
   async function handleConnect() {
@@ -116,7 +122,8 @@ export default function Profile() {
         avatarUrl = upload.avatar_url;
       }
       const updated = await api.updateMe({ nickname, avatar_url: avatarUrl });
-      setMe(updated);
+      queryClient.setQueryData(["me"], updated);
+      queryClient.invalidateQueries({ queryKey: ["me"] });
       window.dispatchEvent(new CustomEvent("profile-updated", { detail: updated }));
       setNickname(updated.nickname || "学习者");
       setEditingNickname(false);
@@ -239,11 +246,11 @@ export default function Profile() {
         <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
           <div>
             <div className="text-sm text-slate-500">课程数</div>
-            <div className="text-lg font-semibold text-slate-800">{courses}</div>
+            <div className="text-lg font-semibold text-slate-800">{coursesCount}</div>
           </div>
           <div>
             <div className="text-sm text-slate-500">任务数</div>
-            <div className="text-lg font-semibold text-slate-800">{tasks.length}</div>
+            <div className="text-lg font-semibold text-slate-800">{(tasks ?? []).length}</div>
           </div>
         </div>
       </div>
@@ -366,11 +373,11 @@ export default function Profile() {
       </div>
       {/* 待办任务 */}
       <h2 className="text-lg font-semibold text-slate-800 mb-3">待办任务</h2>
-      {tasks.length === 0 ? (
+      {(tasks ?? []).length === 0 ? (
         <div className="text-slate-400 text-sm">暂无任务</div>
       ) : (
         <ul className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-          {tasks.map((t) => (
+          {(tasks ?? []).map((t) => (
             <li key={t.id} className="px-4 py-3 flex items-center gap-3">
               <input
                 type="checkbox"
@@ -384,7 +391,14 @@ export default function Profile() {
               </span>
               <button
                 className="text-xs text-red-500 hover:text-red-700 transition-colors"
-                onClick={async () => { await api.deleteTask(t.id); setTasks(await api.listTasks()); }}
+                onClick={async () => {
+                  try {
+                    await deleteTaskMut.mutateAsync(t.id);
+                    toast.success("已删除任务");
+                  } catch (e: any) {
+                    toast.error(e.message || "删除失败");
+                  }
+                }}
               >
                 删除
               </button>

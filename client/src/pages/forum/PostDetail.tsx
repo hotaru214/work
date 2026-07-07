@@ -1,54 +1,71 @@
-﻿import { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api/client";
+import { DetailSkeleton } from "../../components/skeleton/Skeletons";
+import { useMutationToast } from "../../components/ui/toast";
+import { useComments, usePost, usePrefetchPost, useRelatedPosts } from "../../hooks/api";
+
+function getCurrentUserId() {
+  try {
+    const tokenPayload = localStorage.getItem("ch_token")?.split(".")[1];
+    if (!tokenPayload) return null;
+    return JSON.parse(atob(tokenPayload)).sub;
+  } catch {
+    return null;
+  }
+}
 
 export default function PostDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [post, setPost] = useState<any>(null);
-  const [comments, setComments] = useState<any[]>([]);
-  const [related, setRelated] = useState<any[]>([]);
+  const postId = id ? Number(id) : null;
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
+  const prefetchPost = usePrefetchPost();
+  const { data: post, isLoading } = usePost(postId);
+  const { data: comments = [] } = useComments(postId);
+  const { data: related = [] } = useRelatedPosts(postId);
   const [commentText, setCommentText] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const [p, c, r] = await Promise.all([
-        api.getPost(Number(id)),
-        api.listComments(Number(id)),
-        api.relatedPosts(Number(id)),
-      ]);
-      setPost(p);
-      setComments(c);
-      setRelated(r);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { if (id) load(); }, [id]);
 
   async function handleVote() {
-    await api.votePost(Number(id));
-    load();
+    if (!postId) return;
+    try {
+      await api.votePost(postId);
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+    } catch (e: any) {
+      toast.error(e.message || "点赞失败");
+    }
   }
 
   async function handleComment(e: React.FormEvent) {
     e.preventDefault();
-    if (!commentText.trim()) return;
-    await api.createComment({ post_id: Number(id), content: commentText.trim() });
-    setCommentText("");
-    load();
+    if (!commentText.trim() || !postId) return;
+    try {
+      await api.createComment({ post_id: postId, content: commentText.trim() });
+      setCommentText("");
+      queryClient.invalidateQueries({ queryKey: ["comments", postId] });
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      toast.success("评论已发布");
+    } catch (e: any) {
+      toast.error(e.message || "评论失败");
+    }
   }
 
   async function handleDelete() {
-    if (!confirm("确定删除？")) return;
-    await api.deletePost(Number(id));
-    navigate("/forum", { replace: true });
+    if (!confirm("确定删除？") || !postId) return;
+    try {
+      await api.deletePost(postId);
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+      navigate("/forum", { replace: true });
+    } catch (e: any) {
+      toast.error(e.message || "删除失败");
+    }
   }
 
-  if (loading || !post) return <div className="p-6">加载中...</div>;
+  if (isLoading || !post) return <DetailSkeleton />;
+  const currentUserId = getCurrentUserId();
 
   return (
     <div className="p-6 max-w-4xl">
@@ -81,7 +98,7 @@ export default function PostDetail() {
         <button onClick={handleVote} className="bg-slate-900 text-white px-4 py-2 rounded text-sm hover:bg-slate-800">
           👍 点赞 ({post.like_count})
         </button>
-        {post.user_id === JSON.parse(atob(localStorage.getItem("ch_token")?.split(".")[1] || "{}")).sub && (
+        {String(post.user_id) === String(currentUserId) && (
           <button onClick={handleDelete} className="text-red-600 text-sm hover:underline">删除</button>
         )}
       </div>
@@ -97,7 +114,13 @@ export default function PostDetail() {
           <h2 className="text-lg font-semibold mb-2">相关帖子</h2>
           <div className="space-y-2">
             {related.map((r: any) => (
-              <Link key={r.id} to={`/forum/${r.id}`} className="block bg-white p-3 rounded shadow text-sm hover:shadow-md">
+              <Link
+                key={r.id}
+                to={`/forum/${r.id}`}
+                className="block bg-white p-3 rounded shadow text-sm hover:shadow-md"
+                onMouseEnter={() => prefetchPost(r.id)}
+                onFocus={() => prefetchPost(r.id)}
+              >
                 <span className="font-medium">{r.title}</span>
                 <span className="text-slate-500 ml-2">👍 {r.like_count} 💬 {r.comment_count}</span>
               </Link>

@@ -1,6 +1,9 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { api, getToken } from "../api/client";
+import { useCourse, useMaterials, usePosts, useDeleteMaterial, usePrefetchPost } from "../hooks/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMutationToast } from "../components/ui/toast";
 
 function getFileType(filename: string): "image" | "pdf" | "video" | "audio" | "text" | "other" {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
@@ -16,36 +19,32 @@ export default function CourseDetail() {
   const { id } = useParams();
   const courseId = Number(id);
   const navigate = useNavigate();
-  const [course, setCourse] = useState<any>(null);
-  const [materials, setMaterials] = useState<any[]>([]);
-  const [forumPosts, setForumPosts] = useState<any[]>([]);
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
+  const prefetchPost = usePrefetchPost();
+  const { data: course } = useCourse(courseId);
+  const { data: materials = [] } = useMaterials(courseId);
+  const { data: forumPosts = [] } = usePosts({ course_id: courseId, page_size: 5 });
+  const deleteMaterialMut = useDeleteMaterial();
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<{ url: string; filename: string; type: ReturnType<typeof getFileType> } | null>(null);
   const [previewText, setPreviewText] = useState<string>("");
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  async function load() {
-    const [c, ms] = await Promise.all([
-      api.getCourse(courseId),
-      api.listMaterials(courseId),
-    ]);
-    setCourse(c);
-    setMaterials(ms);
-    try {
-      const posts = await api.listPosts({ course_id: courseId, page_size: 5 });
-      setForumPosts(posts);
-    } catch { setForumPosts([]); }
-  }
-
-  useEffect(() => { load(); }, [courseId]);
-
   async function onUpload(e: React.FormEvent) {
     e.preventDefault();
     const file = fileRef.current?.files?.[0];
     if (!file) return;
-    await api.uploadMaterial(courseId, file, file.name.split(".").pop() || "other");
-    if (fileRef.current) fileRef.current.value = "";
-    load();
+    toast.start("上传中…");
+    try {
+      await api.uploadMaterial(courseId, file, file.name.split(".").pop() || "other");
+      if (fileRef.current) fileRef.current.value = "";
+      queryClient.invalidateQueries({ queryKey: ["materials", courseId] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("资料已上传");
+    } catch (err: any) {
+      toast.error(err.message || "上传失败");
+    }
   }
 
   async function startChat() {
@@ -122,7 +121,15 @@ export default function CourseDetail() {
                 </button>
                 <button
                   className="text-sm text-red-600 hover:underline"
-                  onClick={async () => { await api.deleteMaterial(m.id); load(); }}
+                  onClick={async () => {
+                    toast.start("删除中…");
+                    try {
+                      await deleteMaterialMut.mutateAsync(m.id);
+                      toast.success("已删除");
+                    } catch (e: any) {
+                      toast.error(e.message || "删除失败");
+                    }
+                  }}
                 >
                   删除
                 </button>
@@ -137,7 +144,13 @@ export default function CourseDetail() {
           <h2 className="text-xl font-semibold mt-8 mb-3">相关讨论</h2>
           <div className="space-y-2">
             {forumPosts.map((p: any) => (
-              <Link key={p.id} to={`/forum/${p.id}`} className="block bg-white p-3 rounded shadow text-sm hover:shadow-md">
+              <Link
+                key={p.id}
+                to={`/forum/${p.id}`}
+                className="block bg-white p-3 rounded shadow text-sm hover:shadow-md"
+                onMouseEnter={() => prefetchPost(p.id)}
+                onFocus={() => prefetchPost(p.id)}
+              >
                 <span className="font-medium">{p.title}</span>
                 <span className="text-slate-400 ml-2">❤️ {p.like_count} 💬 {p.comment_count}</span>
               </Link>

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "../api/client";
+import { useDashboard, useToggleTask } from "../hooks/api";
+import { useMutationToast } from "../components/ui/toast";
+import { PageSkeleton } from "../components/skeleton/Skeletons";
 
 interface DashboardData {
   total_tasks: number;
@@ -16,21 +17,21 @@ interface DashboardData {
 }
 
 export default function Dashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const { data, isLoading, error } = useDashboard();
+  const toggleMut = useToggleTask();
+  const toast = useMutationToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    (async () => {
-      setData(await api.getDashboard());
-    })();
-  }, []);
-
   async function toggleTask(id: number, done: boolean) {
-    await api.toggleTask(id, done);
-    setData(await api.getDashboard());
+    try {
+      await toggleMut.mutateAsync({ id, done });
+    } catch (e: any) {
+      toast.error(e.message || "操作失败");
+    }
   }
 
-  if (!data) return null;
+  if (error) return <div className="p-6 text-red-600">加载失败：{(error as Error).message}</div>;
+  if (isLoading || !data) return <PageSkeleton lines={6} />;
 
   const rate = data.total_tasks > 0
     ? Math.round((data.completed_tasks / data.total_tasks) * 100)
