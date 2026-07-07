@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, true
 
 from app.database import get_db
 from app.models import Post, PostTag, PostVote, Tag, User
@@ -173,7 +173,7 @@ def related_posts(post_id: int, user: User = Depends(get_current_user), db: Sess
         .filter(
             Post.id != post_id,
             Post.status == "published",
-            PostTag.tag_id.in_(my_tags) if my_tags else True,
+            PostTag.tag_id.in_(my_tags) if my_tags else true(),
         )
         .group_by(Post.id)
         .order_by(desc(Post.like_count))

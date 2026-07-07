@@ -1,4 +1,4 @@
-﻿import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { setToken } from "../api/client";
 import { useSidebar } from "../contexts/SidebarContext";
 
@@ -8,6 +8,7 @@ const navs = [
   { to: "/chat", label: "对话" },
   { to: "/kb", label: "知识库" },
   { to: "/plan", label: "学习计划" },
+  { to: "/forum", label: "讨论区" },
   { to: "/profile", label: "个人中心" },
 ];
 

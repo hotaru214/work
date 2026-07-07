@@ -11,6 +11,9 @@ import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard";
 import KBList from "./pages/kb/KBList";
 import KBDetail from "./pages/kb/KBDetail";
+import ForumList from "./pages/forum/ForumList";
+import PostDetail from "./pages/forum/PostDetail";
+import PostEditor from "./pages/forum/PostEditor";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -35,6 +38,12 @@ export const router = createBrowserRouter([
       { path: "kb", element: <KBList /> },
       { path: "kb/:noteId", element: <KBDetail /> },
       { path: "kb/:noteId/doc/:docId", element: <KBDetail /> },
+
+      // Forum
+      { path: "forum", element: <ForumList /> },
+      { path: "forum/new", element: <PostEditor /> },
+      { path: "forum/:id", element: <PostDetail /> },
+      { path: "forum/:id/edit", element: <PostEditor /> },
     ],
   },
 ]);

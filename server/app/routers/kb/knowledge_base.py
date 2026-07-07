@@ -236,6 +236,68 @@ def delete_note(note_id: str, user: User = Depends(get_current_user), db: Sessio
     db.commit()
     return {"ok": True}
 
+# ==================== Recycle Bin ====================
+
+@router.get("/kb/trash", response_model=list)
+def get_trash_notes(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get soft-deleted notes for the current user."""
+    notes = db.query(KBNote).filter(
+        KBNote.user_id == user.id,
+        KBNote.is_deleted == True
+    ).order_by(desc(KBNote.updated_at)).all()
+
+    result = []
+    for n in notes:
+        parent_branch = db.query(KBBranch).filter(
+            KBBranch.note_id == n.note_id
+        ).first()
+        parent_title = ""
+        if parent_branch:
+            parent_note = db.query(KBNote).filter(
+                KBNote.note_id == parent_branch.parent_note_id,
+                KBNote.is_deleted == False
+            ).first()
+            if parent_note:
+                parent_title = parent_note.title
+
+        result.append({
+            "noteId": n.note_id,
+            "title": n.title,
+            "type": n.type,
+            "deletedAt": n.updated_at.isoformat() if n.updated_at else n.created_at.isoformat(),
+            "parentTitle": parent_title,
+        })
+    return result
+
+
+@router.post("/kb/notes/{note_id}/restore")
+def restore_note(note_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Restore a soft-deleted note and its ancestors."""
+    note = db.query(KBNote).filter(
+        KBNote.note_id == note_id,
+        KBNote.user_id == user.id
+    ).first()
+    if not note:
+        raise HTTPException(404, "笔记不存在")
+
+    note.is_deleted = False
+
+    # Also restore all parent notes that were deleted
+    def _check_parent(nid: str):
+        branch = db.query(KBBranch).filter(KBBranch.note_id == nid).first()
+        if branch and branch.parent_note_id and not branch.parent_note_id.startswith("root_"):
+            parent = db.query(KBNote).filter(
+                KBNote.note_id == branch.parent_note_id,
+                KBNote.is_deleted == True
+            ).first()
+            if parent:
+                parent.is_deleted = False
+                _check_parent(parent.note_id)
+
+    _check_parent(note_id)
+
+    db.commit()
+    return {"ok": True}
 
 @router.patch("/kb/notes/{note_id}/move")
 def move_note(

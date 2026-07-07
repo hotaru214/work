@@ -165,7 +165,7 @@ export const api = {
   relatedPosts: (id: number) => apiFetch<any[]>(`/posts/${id}/related`),
 
   // ===== Comments =====
-  listComments: (postId: number) => apiFetch<any[]>(`/comments/post/${postId}`),
+  listComments: (postId: number) => apiFetch<any[]>(`/comments/?post_id=${postId}`),
   createComment: (data: any) => apiFetch("/comments/", { method: "POST", body: JSON.stringify(data) }),
   deleteComment: (id: number) => apiFetch(`/comments/${id}`, { method: "DELETE" }),
 
@@ -201,6 +201,9 @@ export const api = {
   getDashboard: () => apiFetch<any>("/dashboard/"),
 
   // ===== Knowledge Base (Trilium-style) =====
+  shareNote: (id: string) => apiFetch<any>("/kb/notes/" + id + "/share"),
+  unshareNote: (id: string) => apiFetch<any>("/kb/notes/" + id + "/unshare"),
+  getSharedNote: (token: string) => apiFetch<any>("/public/notes/" + token),
   kb: {
     roots: () => apiFetch<any[]>("/kb/roots"),
     getNote: (noteId: string) => apiFetch<any>(`/kb/notes/${noteId}`),
@@ -218,6 +221,8 @@ export const api = {
     createAttribute: (noteId: string, name: string, value: string = "", type: string = "label") =>
       apiFetch<any>("/kb/attributes", { method: "POST", body: JSON.stringify({ note_id: noteId, name, value, type }) }),
     getRevisions: (noteId: string) => apiFetch<any[]>(`/kb/notes/${noteId}/revisions`),
+    trash: () => apiFetch<any[]>("/kb/trash"),
+    restoreNote: (noteId: string) => apiFetch<any>(`/kb/notes/${noteId}/restore`, { method: "POST" }),
   },
 
   // ===== 语雀 =====

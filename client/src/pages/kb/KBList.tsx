@@ -9,6 +9,22 @@ export default function KBList() {
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashItems, setTrashItems] = useState<any[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  async function handleDelete(e: React.MouseEvent, noteId: string, title: string) {
+    e.stopPropagation();
+    if (!confirm(`确认删除知识库「${title}」？该操作将同时删除其所有子内容。`)) return;
+    try {
+      await api.kb.deleteNote(noteId);
+      await load();
+    } catch (err) {
+      console.error("delete failed", err);
+      alert("删除失败");
+    }
+  }
+
+
 
   async function load() {
     setLoading(true);
@@ -48,6 +64,28 @@ export default function KBList() {
     return n.children ? n.children.length : 0;
   }
 
+
+  async function openTrash() {
+    setShowTrash(true);
+    setTrashLoading(true);
+    try {
+      const items = await api.kb.trash();
+      setTrashItems(Array.isArray(items) ? items : []);
+    } catch { setTrashItems([]); }
+    finally { setTrashLoading(false); }
+  }
+
+  async function restoreFromTrash(noteId: string) {
+    try {
+      await api.kb.restoreNote(noteId);
+      await openTrash();
+      await load();
+    } catch (err) {
+      console.error("restore failed", err);
+      alert("恢复失败");
+    }
+  }
+
   return (
     <div className="p-6 h-full overflow-auto">
       <div className="flex items-center justify-between mb-6">
@@ -60,7 +98,14 @@ export default function KBList() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-          新建知识库
+                    新建知识库
+        </button>
+        <button onClick={openTrash}
+          className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-300 text-slate-600 rounded-xl hover:bg-slate-50 hover:text-slate-800 transition-colors shadow-sm font-medium text-sm">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+          回收站
         </button>
       </div>
 
@@ -75,8 +120,8 @@ export default function KBList() {
       ) : notes.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {notes.map((n: any) => (
-            <div key={n.noteId} onClick={() => navigate(`/kb/${n.noteId}`)}
-              className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-blue-300 cursor-pointer transition-all group">
+            <div key={n.noteId}
+              className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-blue-300 cursor-pointer transition-all group relative" onClick={() => navigate(`/kb/${n.noteId}`)}>
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-3xl">{getNoteIcon(n.type)}</span>
                 <div className="flex-1 min-w-0">
@@ -84,7 +129,14 @@ export default function KBList() {
                   <span className="text-xs text-slate-400">{n.type === "book" ? "知识库" : `${n.type} 笔记`}</span>
                 </div>
               </div>
-              <div className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <button onClick={(e) => handleDelete(e, n.noteId, n.title)}
+                className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all text-sm"
+                title="删除知识库">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
+                            <div className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span>{countChildren(n)} 个子节点</span>
                 <span>{n.dateModified ? fmtDate(n.dateModified) : ""}</span>
               </div>
@@ -124,6 +176,57 @@ export default function KBList() {
           </div>
         </div>
       )}
+    
+      {/* Recycle Bin Modal */}
+      {showTrash && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowTrash(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-800">回收站</h2>
+              <button onClick={() => setShowTrash(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {trashLoading ? (
+                <div className="flex items-center justify-center py-12 text-slate-400">
+                  <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  加载中...
+                </div>
+              ) : trashItems.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <div className="text-4xl mb-3">🗑️</div>
+                  <div>回收站是空的</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {trashItems.map((item: any) => (
+                    <div key={item.noteId}
+                      className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3 border border-slate-200">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="text-lg shrink-0">{item.type === "book" ? "📖" : "📄"}</span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-slate-700 truncate">{item.title || "未命名"}</div>
+                          <div className="text-xs text-slate-400">
+                            删除于 {new Date(item.deletedAt).toLocaleString("zh-CN")}
+                            {item.parentTitle ? <span> · 原位于 {item.parentTitle}</span> : ""}
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={() => restoreFromTrash(item.noteId)}
+                        className="shrink-0 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors">
+                        恢复
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

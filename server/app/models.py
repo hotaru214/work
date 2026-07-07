@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey, Integer, String, Text, LargeBinary
 )
@@ -243,6 +243,7 @@ class KBNote(Base):
     content: Mapped[str] = mapped_column(Text, default="")
     is_protected: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    share_token: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -311,7 +312,6 @@ class KBRevision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     note = relationship("KBNote", back_populates="revisions")
-
 
 
 
