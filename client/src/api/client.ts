@@ -1,4 +1,5 @@
 export const API_BASE = "/api";
+export const SERVER_BASE = API_BASE.replace(/\/api$/, "");
 
 const TOKEN_KEY = "ch_token";
 const YUQUE_TOKEN_KEY = "yuque_token";
@@ -10,6 +11,12 @@ export function getToken(): string | null {
 export function setToken(t: string | null) {
   if (t) localStorage.setItem(TOKEN_KEY, t);
   else localStorage.removeItem(TOKEN_KEY);
+}
+
+export function resolveAssetUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//.test(url) || url.startsWith("data:")) return url;
+  return `${SERVER_BASE}${url}`;
 }
 
 export function getYuqueToken(): string | null {
@@ -112,9 +119,24 @@ export const api = {
   // ===== Auth =====
   login: (username: string, password: string) =>
     apiFetch<any>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
-  register: (username: string, password: string) =>
-    apiFetch<any>("/auth/register", { method: "POST", body: JSON.stringify({ username, password }) }),
+  register: (username: string, password: string, nickname = "学习者", avatarUrl: string | null = null) =>
+    apiFetch<any>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ username, password, nickname, avatar_url: avatarUrl }),
+    }),
   me: () => apiFetch<any>("/auth/me"),
+  updateMe: (data: { nickname?: string; avatar_url?: string | null }) =>
+    apiFetch<any>("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
+  uploadAvatar: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return apiFetch<any>("/auth/avatar", { method: "POST", body: fd });
+  },
+  uploadRegisterAvatar: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return apiFetch<any>("/auth/register/avatar", { method: "POST", body: fd });
+  },
 
   // ===== Courses =====
   listCourses: () => apiFetch<any[]>("/courses/"),

@@ -1,8 +1,16 @@
 ﻿import { useEffect, useState } from "react";
-import { api, getYuqueToken, setYuqueToken, getTriliumUrl, setTriliumUrl, getTriliumToken, setTriliumToken } from "../api/client";
+import { api, getYuqueToken, setYuqueToken, getTriliumUrl, setTriliumUrl, getTriliumToken, setTriliumToken, resolveAssetUrl } from "../api/client";
+import { Check, X } from "lucide-react";
+import { InteractiveHoverButton } from "../components/ui/interactive-hover-button";
 
 export default function Profile() {
-  const [me, setMe] = useState<{ id: number; username: string } | null>(null);
+  const [me, setMe] = useState<{ id: number; username: string; nickname: string; avatar_url?: string | null } | null>(null);
+  const [nickname, setNickname] = useState("学习者");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
   const [courses, setCourses] = useState(0);
   const [tasks, setTasks] = useState<any[]>([]);
   const [yuqueToken, setLocalYuqueToken] = useState(getYuqueToken() || "");
@@ -15,6 +23,7 @@ export default function Profile() {
   const [triliumInfo, setTriliumInfo] = useState<any>(null);
   const [triliumConnecting, setTriliumConnecting] = useState(false);
   const [triliumError, setTriliumError] = useState("");
+  const hasProfileChanges = !!avatarFile || nickname !== (me?.nickname || "学习者");
 
     useEffect(() => {
     if (getTriliumUrl() && getTriliumToken()) {
@@ -26,7 +35,9 @@ export default function Profile() {
 
   useEffect(() => {
     (async () => {
-      setMe(await api.me());
+      const current = await api.me();
+      setMe(current);
+      setNickname(current.nickname || "学习者");
       setCourses((await api.listCourses()).length);
       setTasks(await api.listTasks());
     })();
@@ -95,16 +106,146 @@ export default function Profile() {
     setYuqueUser(null);
   }
 
+  async function saveProfile() {
+    setProfileSaving(true);
+    setProfileMessage("");
+    try {
+      let avatarUrl = me?.avatar_url ?? null;
+      if (avatarFile) {
+        const upload = await api.uploadAvatar(avatarFile);
+        avatarUrl = upload.avatar_url;
+      }
+      const updated = await api.updateMe({ nickname, avatar_url: avatarUrl });
+      setMe(updated);
+      window.dispatchEvent(new CustomEvent("profile-updated", { detail: updated }));
+      setNickname(updated.nickname || "学习者");
+      setEditingNickname(false);
+      setAvatarFile(null);
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+        setAvatarPreview(null);
+      }
+      setProfileMessage("个人信息已更新");
+    } catch (e: any) {
+      setProfileMessage(e.message || "保存失败");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  function cancelProfileChanges() {
+    setNickname(me?.nickname || "学习者");
+    setEditingNickname(false);
+    setAvatarFile(null);
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+      setAvatarPreview(null);
+    }
+    setProfileMessage("");
+  }
+
   return (
     <div className="p-6 max-w-3xl">
-      <h1 className="text-2xl font-bold text-slate-800 mb-6">个人中心</h1>
+      <h1 className="text-2xl font-bold text-slate-800 mb-6">个人信息</h1>
 
       {/* 用户信息 */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-        <div className="text-sm text-slate-500">用户名</div>
-        <div className="text-lg font-semibold text-slate-800">{me?.username ?? "—"}</div>
-        <div className="text-sm text-slate-500 mt-3">课程数</div>
-        <div className="text-lg font-semibold text-slate-800">{courses}</div>
+        <div className="flex items-start gap-5">
+          <label className="relative flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-violet-100 text-2xl font-semibold text-violet-600 ring-1 ring-slate-200">
+            {avatarPreview || me?.avatar_url ? (
+              <img src={avatarPreview || resolveAssetUrl(me?.avatar_url) || ""} alt="头像" className="h-full w-full object-cover" />
+            ) : (
+              "学"
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                setAvatarFile(file);
+                setProfileMessage("");
+                if (avatarPreview) {
+                  URL.revokeObjectURL(avatarPreview);
+                }
+                setAvatarPreview(file ? URL.createObjectURL(file) : null);
+              }}
+            />
+          </label>
+          <div className="min-w-0 flex-1 space-y-4">
+            <div>
+              <div className="text-sm text-slate-500">用户名</div>
+              <div className="text-lg font-semibold text-slate-800">{me?.username ?? "—"}</div>
+              <div className="mt-1 text-xs text-slate-400">用户名不可重复，暂不支持修改。</div>
+            </div>
+            <div>
+              <div className="mb-1 text-sm text-slate-500">昵称</div>
+              {editingNickname ? (
+                <input
+                  autoFocus
+                  id="profile-nickname"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+                  value={nickname}
+                  onChange={(e) => {
+                    setNickname(e.target.value);
+                    setProfileMessage("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setNickname(me?.nickname || "学习者");
+                      setEditingNickname(false);
+                    }
+                  }}
+                  placeholder="昵称可重复"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onDoubleClick={() => setEditingNickname(true)}
+                  className="block w-full rounded-lg px-0 py-1 text-left text-lg font-semibold text-slate-800 outline-none transition hover:text-slate-950"
+                  title="双击修改昵称"
+                >
+                  {nickname || "学习者"}
+                </button>
+              )}
+            </div>
+            {(hasProfileChanges || profileSaving) && (
+              <div className="flex items-center gap-3">
+                <InteractiveHoverButton
+                  type="button"
+                  onClick={saveProfile}
+                  disabled={profileSaving}
+                  hoverIcon={<Check size={18} strokeWidth={2.4} />}
+                  hoverDotClassName="bg-emerald-500"
+                  className="rounded-lg border-slate-900 bg-white px-5 py-2 text-sm font-medium text-slate-950 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {profileSaving ? "保存中..." : "保存"}
+                </InteractiveHoverButton>
+                <InteractiveHoverButton
+                  type="button"
+                  onClick={cancelProfileChanges}
+                  disabled={profileSaving}
+                  hoverIcon={<X size={18} strokeWidth={2.4} />}
+                  hoverDotClassName="bg-red-500"
+                  className="rounded-lg border-red-500 bg-white px-5 py-2 text-sm font-medium text-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  取消
+                </InteractiveHoverButton>
+              </div>
+            )}
+            {profileMessage && <div className="text-sm text-slate-500">{profileMessage}</div>}
+          </div>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+          <div>
+            <div className="text-sm text-slate-500">课程数</div>
+            <div className="text-lg font-semibold text-slate-800">{courses}</div>
+          </div>
+          <div>
+            <div className="text-sm text-slate-500">任务数</div>
+            <div className="text-lg font-semibold text-slate-800">{tasks.length}</div>
+          </div>
+        </div>
       </div>
 
       {/* 语雀连接 */}

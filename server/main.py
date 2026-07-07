@@ -1,7 +1,9 @@
 ﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from app.database import Base, engine
+from app.config import settings
+from app.database import Base, engine, ensure_local_schema
 from app.routers.core import auth, courses, materials, chat, plans, tasks
 from app.routers.forum import posts, comments, tags
 from app.routers.kb import notebooks, knowledge_base
@@ -9,6 +11,7 @@ from app.routers.integrations import yuque, trilium
 from app.routers.misc import dashboard
 
 Base.metadata.create_all(bind=engine)
+ensure_local_schema()
 
 app = FastAPI(title="课程学习助手 Agent 平台", version="0.4.0")
 
@@ -34,6 +37,7 @@ app.include_router(yuque.router, prefix="/api", tags=["yuque"])
 app.include_router(trilium.router, prefix="/api", tags=["trilium"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(knowledge_base.router, prefix="/api", tags=["kb"])
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 @app.get("/")
