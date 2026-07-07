@@ -1,9 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { motion } from "motion/react";
+import { Bot, Check, FileText, Hash, SendHorizonal } from "lucide-react";
 import { api } from "../../api/client";
 import { useMutationToast } from "../../components/ui/toast";
 import { useAutosaveDraft } from "../../hooks/useAutosaveDraft";
 import { useTags } from "../../hooks/api";
+import { IconBadge, PageShell, PrimaryButton, Surface, TextAreaField, TextField } from "../../components/PageScaffold";
 
 export default function PostEditor() {
   const navigate = useNavigate();
@@ -64,43 +67,84 @@ export default function PostEditor() {
   }
 
   return (
-    <div className="p-6 max-w-3xl">
-      <h1 className="text-2xl font-semibold mb-4">发布帖子</h1>
-      {sessionId && <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4 text-sm text-blue-700">该帖子将关联 AI 对话 #{sessionId}</div>}
-      {draft.hasDraft && !sessionId && (
-        <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          已自动恢复本地草稿
-        </div>
-      )}
-
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label className="text-sm font-medium">标题</label>
-          <input className="w-full border rounded px-3 py-2 mt-1" value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </div>
-        <div>
-          <label className="text-sm font-medium">内容 (支持 Markdown)</label>
-          <textarea className="w-full border rounded px-3 py-2 mt-1 font-mono text-sm" rows={15} value={content} onChange={(e) => setContent(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-sm font-medium">标签</label>
-          <div className="flex flex-wrap gap-2 mt-1">
-            {allTags.map((t: any) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => toggleTag(t.id)}
-                className={`px-3 py-1 rounded text-sm border ${selectedTagIds.includes(t.id) ? "bg-slate-900 text-white" : "bg-white"}`}
-              >
-                {t.name}
-              </button>
-            ))}
+    <PageShell title="发布帖子" description="把课程问题、复盘笔记或 AI 对话整理成讨论帖。" className="bg-slate-50">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+        className="mx-auto w-full max-w-3xl"
+      >
+        {sessionId && (
+          <div className="mb-4 flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            <Bot size={17} />
+            该帖子将关联 AI 对话 #{sessionId}
           </div>
-        </div>
-        <button disabled={loading} className="bg-slate-900 text-white px-6 py-2 rounded hover:bg-slate-800 disabled:opacity-50">
-          {loading ? "发布中..." : "发布"}
-        </button>
-      </form>
-    </div>
+        )}
+        {draft.hasDraft && !sessionId && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            已自动恢复本地草稿
+          </div>
+        )}
+
+        <Surface className="overflow-hidden p-0">
+          <div className="border-b border-slate-100 p-5">
+            <div className="flex items-center gap-3">
+              <IconBadge icon={FileText} tone="slate" />
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950">帖子内容</h2>
+                <p className="mt-0.5 text-xs text-slate-500">支持 Markdown，离开页面前会自动保存草稿。</p>
+              </div>
+            </div>
+          </div>
+          <form onSubmit={onSubmit} className="space-y-5 p-5">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">标题</label>
+              <TextField value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="一句话说明你想讨论的问题" />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">内容</label>
+              <TextAreaField rows={15} value={content} onChange={(e) => setContent(e.target.value)} className="font-mono leading-6" placeholder="写下正文，支持 Markdown..." />
+            </div>
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+                <Hash size={15} />
+                标签
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {allTags.map((t: any, index: number) => {
+                  const selected = selectedTagIds.includes(t.id);
+                  return (
+                    <motion.button
+                      key={t.id}
+                      type="button"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.18) }}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => toggleTag(t.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition ${
+                        selected ? "bg-slate-950 text-white shadow-sm" : "bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
+                      style={{ borderColor: selected ? "#020617" : `${t.color}55` }}
+                    >
+                      {selected && <Check size={14} />}
+                      {t.name}
+                    </motion.button>
+                  );
+                })}
+                {allTags.length === 0 && <span className="text-sm text-slate-400">暂无可选标签</span>}
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-slate-100 pt-5">
+              <PrimaryButton disabled={loading || !title.trim()} className="min-w-28">
+                <SendHorizonal size={16} />
+                {loading ? "发布中..." : "发布"}
+              </PrimaryButton>
+            </div>
+          </form>
+        </Surface>
+      </motion.div>
+    </PageShell>
   );
 }

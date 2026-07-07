@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
 import { api } from "../../api/client";
 import { useSidebar } from "../../contexts/SidebarContext";
 import { mdToHtml, htmlToMd } from "../../utils/markdown";
@@ -9,13 +10,41 @@ import { useMutationToast } from "../../components/ui/toast";
 import { useAutosaveDraft } from "../../hooks/useAutosaveDraft";
 import { useKbNote, useKbTree, usePrefetchKbNote, useTags } from "../../hooks/api";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  BookOpen,
+  Braces,
+  Code2,
+  FileText,
+  FolderPlus,
+  Highlighter,
+  ImageIcon,
+  Link2,
+  List,
+  ListOrdered,
+  Minus,
+  Network,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  Quote,
+  Redo2,
+  RemoveFormatting,
+  Rows3,
+  Table2,
+  Type,
+  Undo2,
+  X,
+} from "lucide-react";
 
 const CREATE_OPTIONS = [
-  { type: "text", label: "新建文档", icon: "📄", desc: "创建富文本文档", mime: "text/html" },
-  { type: "code", label: "新建代码", icon: "💻", desc: "创建代码片段", mime: "text/plain" },
-  { type: "book", label: "新建文件夹", icon: "📁", desc: "创建子文件夹分类" },
-  { type: "mermaid", label: "新建图表", icon: "📊", desc: "创建 Mermaid 图表", mime: "text/mermaid" },
-  { type: "relation-map", label: "新建关系图", icon: "🔗", desc: "创建可视化关系图" },
+  { type: "text", label: "新建文档", icon: FileText, desc: "创建富文本文档", mime: "text/html" },
+  { type: "code", label: "新建代码", icon: Code2, desc: "创建代码片段", mime: "text/plain" },
+  { type: "book", label: "新建文件夹", icon: FolderPlus, desc: "创建子文件夹分类" },
+  { type: "mermaid", label: "新建图表", icon: Rows3, desc: "创建 Mermaid 图表", mime: "text/mermaid" },
+  { type: "relation-map", label: "新建关系图", icon: Network, desc: "创建可视化关系图" },
 ];
 
 const FONT_SIZES = ["12","14","16","18","20","24","28","32","36","48","64"];
@@ -31,11 +60,12 @@ export default function KBDetail() {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
   const prefetchKbNote = usePrefetchKbNote();
-  const { mainSidebarOpen, subSidebarOpen, toggleSubSidebar, setSubSidebarOpen } = useSidebar();
+  const { subSidebarOpen, toggleSubSidebar, setSubSidebarOpen } = useSidebar();
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const savedRangeRef = useRef<Range | null>(null);
 
   const { data: note, isLoading: loading } = useKbNote(activeNoteId);
   const { data: tree = [] } = useKbTree(notebookId);
@@ -58,6 +88,11 @@ export default function KBDetail() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [noteTags, setNoteTags] = useState<any[]>([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [insertDialog, setInsertDialog] = useState<null | "image" | "link" | "table">(null);
+  const [imageUrl, setImageUrl] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [tableRows, setTableRows] = useState("3");
+  const [tableCols, setTableCols] = useState("3");
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
   const draft = useAutosaveDraft(
     `draft:kb:${activeNoteId || "none"}`,
@@ -144,6 +179,20 @@ export default function KBDetail() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showCreateMenu]);
 
+  useEffect(() => {
+    function handleToolbarClick(e: MouseEvent) {
+      if (dropdownRef.current?.contains(e.target as Node)) return;
+      setShowHeading(false);
+      setShowFontSize(false);
+      setShowColor(false);
+      setShowBgColor(false);
+    }
+    if (showHeading || showFontSize || showColor || showBgColor) {
+      document.addEventListener("mousedown", handleToolbarClick);
+    }
+    return () => document.removeEventListener("mousedown", handleToolbarClick);
+  }, [showHeading, showFontSize, showColor, showBgColor]);
+
   const scheduleSave = useCallback(() => {
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
     setHasLocalChanges(true);
@@ -184,6 +233,24 @@ export default function KBDetail() {
     document.execCommand(cmd, false, value);
     if (editorRef.current) editorRef.current.focus();
     scheduleSave();
+  }
+
+  function saveEditorSelection() {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !editorRef.current) return;
+    const range = selection.getRangeAt(0);
+    if (editorRef.current.contains(range.commonAncestorContainer)) {
+      savedRangeRef.current = range.cloneRange();
+    }
+  }
+
+  function restoreEditorSelection() {
+    const range = savedRangeRef.current;
+    if (!range || !editorRef.current) return;
+    editorRef.current.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
   }
 
   function handleHeading(tag: string) {
@@ -312,27 +379,45 @@ export default function KBDetail() {
   }
 
 
-  function handleImage() {
-    const url = prompt("请输入图片地址", "https://");
-    if (url) execCmd("insertImage", url);
+  function closeInsertDialog() {
+    setInsertDialog(null);
+    setImageUrl("");
+    setLinkUrl("");
+    setTableRows("3");
+    setTableCols("3");
   }
 
-
-  function createTable() {
-    const rows = prompt("行数", "3");
-    const cols = prompt("列数", "3");
-    if (rows && cols) {
-      let html = "<table border='1' style='border-collapse:collapse;width:100%;margin:0.5em 0'>";
-      for (let r = 0; r < parseInt(rows); r++) {
+  function handleInsertSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    restoreEditorSelection();
+    if (insertDialog === "image") {
+      const url = imageUrl.trim();
+      if (url) execCmd("insertImage", url);
+      closeInsertDialog();
+      return;
+    }
+    if (insertDialog === "link") {
+      const url = linkUrl.trim();
+      if (url) execCmd("createLink", url);
+      closeInsertDialog();
+      return;
+    }
+    if (insertDialog === "table") {
+      const rows = Math.max(1, Math.min(20, Number.parseInt(tableRows, 10) || 3));
+      const cols = Math.max(1, Math.min(12, Number.parseInt(tableCols, 10) || 3));
+      let html = "<table style='border-collapse:collapse;width:100%;margin:0.75em 0'>";
+      for (let r = 0; r < rows; r++) {
         html += "<tr>";
-        for (let c = 0; c < parseInt(cols); c++) {
-          html += "<td style='padding:6px;border:1px solid #ccc'>&nbsp;</td>";
+        for (let c = 0; c < cols; c++) {
+          html += "<td style='padding:8px;border:1px solid #cbd5e1'>&nbsp;</td>";
         }
         html += "</tr>";
       }
       html += "</table>";
       document.execCommand("insertHTML", false, html);
       if (editorRef.current) editorRef.current.focus();
+      scheduleSave();
+      closeInsertDialog();
     }
   }
 
@@ -368,66 +453,85 @@ export default function KBDetail() {
     else navigate(`/kb/${notebookId}/doc/${item.noteId}`);
   }
 
-  function handleLink() { const url = prompt("输入链接地址：", "https://"); if (url) execCmd("createLink", url); }
+  function openInsertDialog(type: "image" | "link" | "table") {
+    saveEditorSelection();
+    setInsertDialog(type);
+    setShowHeading(false);
+    setShowFontSize(false);
+    setShowColor(false);
+    setShowBgColor(false);
+  }
   
 
   if (loading) return <DetailSkeleton />;
-  if (!note) return <div className="flex items-center justify-center h-full text-slate-400">笔记不存在</div>;
+  if (!note) return <div className="flex h-full items-center justify-center bg-slate-50 text-slate-400">笔记不存在</div>;
 
   function SubToggle() {
-    const leftPos = mainSidebarOpen ? "calc(14rem + 4px)" : "4px";
     return (
       <button onClick={toggleSubSidebar}
-        className="absolute z-30 top-14 w-6 h-8 flex items-center justify-center rounded-r hover:bg-slate-200 bg-white/90 shadow-sm text-slate-500 border border-slate-200"
-        style={{ left: leftPos, transition: "left 0.2s" }}
+        className="absolute left-0 z-30 top-14 hidden h-8 w-6 items-center justify-center rounded-r border border-slate-200 bg-white/90 text-slate-500 shadow-sm transition hover:bg-slate-200 md:flex"
         title={subSidebarOpen ? "收起目录" : "展开目录"}>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points={subSidebarOpen ? "15 18 9 12 15 6" : "9 18 15 12 9 6"} />
-        </svg>
+        {subSidebarOpen ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
       </button>
     );
   }
 
   return (
-    <div className="flex h-full">
+    <div className="relative flex h-full bg-slate-50 text-slate-950">
       {/* Sub-sidebar: Note Tree */}
-      <div className="bg-white border-r flex flex-col overflow-hidden transition-all duration-200 shrink-0"
+      <div className="flex shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-200"
         style={{ width: subSidebarOpen ? "16rem" : "0rem", minWidth: subSidebarOpen ? "16rem" : "0rem" }}>
-        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-4">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-base shrink-0">📚</span>
-            <span className="font-semibold text-sm text-slate-700 truncate">{note.title}</span>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+              <BookOpen size={16} />
+            </span>
+            <span className="truncate text-sm font-semibold text-slate-950">{note.title}</span>
           </div>
-          <button onClick={() => navigate("/kb")} className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400" title="返回">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          <button onClick={() => navigate("/kb")} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" title="返回">
+            <X size={16} />
           </button>
         </div>
 
         <div className="flex-1 overflow-auto">
-          <div className="px-3 pt-3 pb-1 relative" ref={menuRef}>
+          <div className="relative px-3 pb-2 pt-3" ref={menuRef}>
             <button onClick={() => setShowCreateMenu(!showCreateMenu)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-dashed border-slate-300 hover:border-blue-400 hover:text-blue-600">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950">
+              <Plus size={16} />
               <span>新建</span>
             </button>
+            <AnimatePresence>
             {showCreateMenu && (
-              <div className="absolute top-full left-3 right-3 mt-1 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden z-40 animate-fade-in">
-                {CREATE_OPTIONS.map((opt) => (
-                  <button key={opt.type} onClick={() => openCreateModal(opt.type)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50 text-left border-b border-slate-100 last:border-0 transition-colors">
-                    <span className="text-lg shrink-0">{opt.icon}</span>
-                    <div className="min-w-0">
-                      <div className="font-medium text-slate-700">{opt.label}</div>
-                      <div className="text-xs text-slate-400 truncate">{opt.desc}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <motion.div
+                className="absolute left-3 right-3 top-full z-40 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                transition={{ duration: 0.16 }}
+              >
+                {CREATE_OPTIONS.map((opt) => {
+                  const Icon = opt.icon;
+                  return (
+                    <motion.button key={opt.type} onClick={() => openCreateModal(opt.type)}
+                      whileHover={{ x: 3 }}
+                      className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition-colors last:border-0 hover:bg-slate-50">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                        <Icon size={16} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-800">{opt.label}</div>
+                        <div className="text-xs text-slate-400 truncate">{opt.desc}</div>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </motion.div>
             )}
+            </AnimatePresence>
           </div>
           <div className="h-full py-1">
             {tree.length === 0 ? (
-              <div className="text-xs text-slate-400 text-center py-8 px-4">暂无内容<br />点击上方 + 创建</div>
+              <div className="mx-3 rounded-lg border border-dashed border-slate-200 px-4 py-8 text-center text-xs leading-5 text-slate-400">暂无内容<br />点击上方新建</div>
             ) : (
               <VirtualTree
                 items={tree}
@@ -441,21 +545,28 @@ export default function KBDetail() {
       </div>
 
       {/* Main content area */}
-      <div className="flex-1 flex flex-col overflow-auto bg-white min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
         {isBook ? (
-          <div className="flex-1 flex items-center justify-center text-slate-400">
-            <div className="text-center">
-              <div className="text-5xl mb-4">📚</div>
-              <div className="text-lg font-medium text-slate-600 mb-2">{note.title}</div>
+          <div className="flex flex-1 items-center justify-center p-8 text-slate-400">
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-lg border border-dashed border-slate-300 bg-white px-10 py-12 text-center shadow-sm"
+            >
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                <BookOpen size={26} />
+              </div>
+              <div className="mb-2 text-lg font-semibold text-slate-800">{note.title}</div>
               <div className="text-sm">选择一个笔记开始编辑，或点击左侧「新建」创建新内容</div>
-            </div>
+            </motion.div>
           </div>
         ) : (
           <>
             {/* Toolbar */}
-                        <div ref={dropdownRef} className="px-2 py-1.5 border-b bg-white flex items-center gap-0.5 shrink-0 select-none h-11 whitespace-nowrap">
-              <button onClick={() => execCmd("undo")} className="tb-btn" title="撤销">↩</button>
-              <button onClick={() => execCmd("redo")} className="tb-btn" title="重做">↪</button>
+            <div ref={dropdownRef} className="flex h-12 shrink-0 select-none items-center gap-1 overflow-x-auto whitespace-nowrap border-b border-slate-200 bg-white px-3 py-2">
+              <button onClick={() => execCmd("undo")} className="tb-btn" title="撤销"><Undo2 size={14} /></button>
+              <button onClick={() => execCmd("redo")} className="tb-btn" title="重做"><Redo2 size={14} /></button>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
               <button onClick={() => execCmd("bold")} className="tb-btn font-bold" title="粗体">B</button>
               <button onClick={() => execCmd("italic")} className="tb-btn italic" title="斜体">I</button>
@@ -463,121 +574,179 @@ export default function KBDetail() {
               <button onClick={() => execCmd("strikeThrough")} className="tb-btn" title="删除线"><s>S</s></button>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
               <div className="relative">
-                <button onClick={() => { setShowHeading(prev => !prev); setShowFontSize(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn" title="标题"><span className="text-[10px] font-bold">H</span></button>
-                {showHeading && (
-                  <div className="absolute top-full left-0 z-50 mt-1 bg-white border rounded-lg shadow-lg py-1 min-w-[100px] animate-fade-in">
-                    <button onClick={() => { execCmd("formatBlock","<h1>"); setShowHeading(false); }} className="block w-full text-left px-4 py-1.5 text-sm hover:bg-slate-100 text-slate-700">标题 1</button>
-                    <button onClick={() => { execCmd("formatBlock","<h2>"); setShowHeading(false); }} className="block w-full text-left px-4 py-1.5 text-sm hover:bg-slate-100 text-slate-700">标题 2</button>
-                    <button onClick={() => { execCmd("formatBlock","<h3>"); setShowHeading(false); }} className="block w-full text-left px-4 py-1.5 text-sm hover:bg-slate-100 text-slate-700">标题 3</button>
-                    <button onClick={() => { execCmd("formatBlock","<h4>"); setShowHeading(false); }} className="block w-full text-left px-4 py-1.5 text-sm hover:bg-slate-100 text-slate-700">标题 4</button>
-                    <button onClick={() => { execCmd("formatBlock","<p>"); setShowHeading(false); }} className="block w-full text-left px-4 py-1.5 text-sm hover:bg-slate-100 text-slate-700">正文</button>
-                  </div>
-                )}
+                <button onClick={() => { setShowHeading(prev => !prev); setShowFontSize(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn" title="标题"><Type size={14} /></button>
+                <AnimatePresence>
+                  {showHeading && (
+                    <motion.div
+                      className="absolute left-0 top-full z-50 mt-2 min-w-[112px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                    >
+                      {[
+                        ["<h1>", "标题 1"],
+                        ["<h2>", "标题 2"],
+                        ["<h3>", "标题 3"],
+                        ["<h4>", "标题 4"],
+                        ["<p>", "正文"],
+                      ].map(([tag, label]) => (
+                        <button key={tag} onClick={() => { execCmd("formatBlock", tag); setShowHeading(false); }} className="block w-full px-4 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                          {label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
               <div className="relative">
                 <button onClick={() => { setShowFontSize(prev => !prev); setShowHeading(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn text-[10px]" title="字号">Aa</button>
-                {showFontSize && (
-                  <div className="absolute top-full left-0 z-50 mt-1 bg-white border rounded-lg shadow-lg py-1 min-w-[70px] max-h-36 overflow-y-auto animate-fade-in">
-                    {FONT_SIZES.map((s) => (
-                      <button key={s} onClick={() => { handleFontSize(s); setShowFontSize(false); }}
-                        className="block w-full text-left px-3 py-1 text-sm hover:bg-slate-100 text-slate-700">{s}px</button>
-                    ))}
-                  </div>
-                )}
+                <AnimatePresence>
+                  {showFontSize && (
+                    <motion.div
+                      className="absolute left-0 top-full z-50 mt-2 max-h-44 min-w-[82px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                    >
+                      {FONT_SIZES.map((s) => (
+                        <button key={s} onClick={() => { handleFontSize(s); setShowFontSize(false); }}
+                          className="block w-full px-3 py-1.5 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">{s}px</button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               <div className="relative">
                 <button onClick={() => { setShowColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowBgColor(false); }} className="tb-btn" title="文字颜色">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4L4 20h4l1.5-4h9L20 20h4L13 4h-2zM9.5 13L12 7l2.5 6"/></svg>
+                  <Type size={14} />
                 </button>
-                {showColor && (
-                  <div className="absolute top-full left-0 z-50 mt-1 bg-white border rounded-lg shadow-lg p-2 animate-fade-in">
-                    <div className="grid grid-cols-8 gap-4">
-                      {["#000","#434343","#666","#999","#b7b7b7","#ccc","#d9d9d9","#fff","#e53e3e","#dd6b20","#d69e2e","#38a169","#319795","#3182ce","#5a67d8","#805ad5","#ffb3b3","#ffd699","#ffecb3","#b3ffcc","#b3ecff","#b3c2ff","#d4b3ff","#ffb3ec"].map(c => (
-                        <button key={c} onClick={() => { handleColor(c); setShowColor(false); }} className="w-6 h-6 rounded border border-slate-200 hover:scale-110 transition-transform" style={{backgroundColor:c}} title={c}/>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <AnimatePresence>
+                  {showColor && (
+                    <motion.div
+                      className="absolute left-0 top-full z-50 mt-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
+                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                    >
+                      <div className="grid grid-cols-8 gap-2">
+                        {["#000","#434343","#666","#999","#b7b7b7","#ccc","#d9d9d9","#fff","#e53e3e","#dd6b20","#d69e2e","#38a169","#319795","#3182ce","#5a67d8","#805ad5","#ffb3b3","#ffd699","#ffecb3","#b3ffcc","#b3ecff","#b3c2ff","#d4b3ff","#ffb3ec"].map(c => (
+                          <button key={c} onClick={() => { handleColor(c); setShowColor(false); }} className="h-6 w-6 rounded-md border border-slate-200 transition hover:scale-110 hover:shadow-sm" style={{backgroundColor:c}} title={c}/>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               <div className="relative">
                 <button onClick={() => { setShowBgColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowColor(false); }} className="tb-btn" title="背景色">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                  <Highlighter size={14} />
                 </button>
-                {showBgColor && (
-                  <div className="absolute top-full left-0 z-50 mt-1 bg-white border rounded-lg shadow-lg p-2 animate-fade-in">
-                    <div className="grid grid-cols-8 gap-4">
-                      {["#ffffcc","#d9f2d9","#d9e6f2","#e6d9f2","#f2d9d9","#f2eed9","#d9f2f2","#f2d9f2","#ffd9b3","#b3d9ff","#ffb3b3","#b3ffb3","#ffff99","#cc99ff","#99ccff","#ff99cc"].map(c => (
-                        <button key={c} onClick={() => { handleBgColor(c); setShowBgColor(false); }} className="w-6 h-6 rounded border border-slate-200 hover:scale-110 transition-transform" style={{backgroundColor:c}} title={c}/>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <AnimatePresence>
+                  {showBgColor && (
+                    <motion.div
+                      className="absolute left-0 top-full z-50 mt-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
+                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                    >
+                      <div className="grid grid-cols-8 gap-2">
+                        {["#ffffcc","#d9f2d9","#d9e6f2","#e6d9f2","#f2d9d9","#f2eed9","#d9f2f2","#f2d9f2","#ffd9b3","#b3d9ff","#ffb3b3","#b3ffb3","#ffff99","#cc99ff","#99ccff","#ff99cc"].map(c => (
+                          <button key={c} onClick={() => { handleBgColor(c); setShowBgColor(false); }} className="h-6 w-6 rounded-md border border-slate-200 transition hover:scale-110 hover:shadow-sm" style={{backgroundColor:c}} title={c}/>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button onClick={() => execCmd("justifyLeft")} className="tb-btn" title="左对齐"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="17" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg></button>
-              <button onClick={() => execCmd("justifyCenter")} className="tb-btn" title="居中"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="18" y1="14" x2="6" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg></button>
-              <button onClick={() => execCmd("justifyRight")} className="tb-btn" title="右对齐"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="7" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg></button>
+              <button onClick={() => execCmd("justifyLeft")} className="tb-btn" title="左对齐"><AlignLeft size={14} /></button>
+              <button onClick={() => execCmd("justifyCenter")} className="tb-btn" title="居中"><AlignCenter size={14} /></button>
+              <button onClick={() => execCmd("justifyRight")} className="tb-btn" title="右对齐"><AlignRight size={14} /></button>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button onClick={() => execCmd("insertUnorderedList")} className="tb-btn" title="无序列表"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor"/><circle cx="4" cy="12" r="1.5" fill="currentColor"/><circle cx="4" cy="18" r="1.5" fill="currentColor"/></svg></button>
-              <button onClick={() => execCmd("insertOrderedList")} className="tb-btn" title="有序列表"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg></button>
+              <button onClick={() => execCmd("insertUnorderedList")} className="tb-btn" title="无序列表"><List size={14} /></button>
+              <button onClick={() => execCmd("insertOrderedList")} className="tb-btn" title="有序列表"><ListOrdered size={14} /></button>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button onClick={() => execCmd("formatBlock","<blockquote>")} className="tb-btn" title="引用">❝</button>
-              <button onClick={() => execCmd("formatBlock","<pre>")} className="tb-btn font-mono text-xs" title="代码块">&gt;_</button>
-              <button onClick={createTable} className="tb-btn" title="插入表格"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></button>
-              <button onClick={handleImage} className="tb-btn" title="插入图片">🖼</button>
-              <button onClick={handleLink} className="tb-btn" title="插入链接">🔗</button>
-              <button onClick={() => execCmd("insertHorizontalRule")} className="tb-btn" title="分割线">—</button>
+              <button onClick={() => execCmd("formatBlock","<blockquote>")} className="tb-btn" title="引用"><Quote size={14} /></button>
+              <button onClick={() => execCmd("formatBlock","<pre>")} className="tb-btn" title="代码块"><Braces size={14} /></button>
+              <button onClick={() => openInsertDialog("table")} className="tb-btn" title="插入表格"><Table2 size={14} /></button>
+              <button onClick={() => openInsertDialog("image")} className="tb-btn" title="插入图片"><ImageIcon size={14} /></button>
+              <button onClick={() => openInsertDialog("link")} className="tb-btn" title="插入链接"><Link2 size={14} /></button>
+              <button onClick={() => execCmd("insertHorizontalRule")} className="tb-btn" title="分割线"><Minus size={14} /></button>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button onClick={() => execCmd("removeFormat")} className="tb-btn" title="清除格式"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 4h10l-3 9M12 18l-2 3"/><line x1="4" y1="4" x2="20" y2="20"/></svg></button>
+              <button onClick={() => execCmd("removeFormat")} className="tb-btn" title="清除格式"><RemoveFormatting size={14} /></button>
               <div className="w-px h-4 bg-slate-200 mx-0.5" />
             </div>
 
             {/* Title bar */}
-            <div className="px-4 py-3 border-b bg-white shrink-0">
+            <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-4">
               <div className="flex items-center gap-3">
-              <input className="flex-1 text-lg font-semibold border-none outline-none bg-transparent min-w-0"
+              <input className="min-w-0 flex-1 border-none bg-transparent text-xl font-semibold tracking-tight text-slate-950 outline-none placeholder:text-slate-300"
                 value={title} onChange={handleTitleChange} placeholder="标题" />
-              {saveStatus && (
-                <span className={`text-xs shrink-0 ${saveStatus === "已保存" ? "text-green-600" : "text-slate-400"}`}>
-                  {saveStatus}
-                </span>
-              )}
+              <AnimatePresence>
+                {saveStatus && (
+                  <motion.span
+                    initial={{ opacity: 0, y: -4, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.96 }}
+                    transition={{ duration: 0.16 }}
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs ${saveStatus === "已保存" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}
+                  >
+                    {saveStatus}
+                  </motion.span>
+                )}
+              </AnimatePresence>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                 {noteTags.map((t: any) => (
-                  <span key={t.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80"
+                  <motion.span key={t.id}
+                    layout
+                    initial={{ opacity: 0, y: -4, scale: 0.94 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.94 }}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 text-xs hover:opacity-80"
                     style={{ backgroundColor: t.color + "20", color: t.color }}
                     onClick={() => handleRemoveTag(t.id)}
                     title="点击移除">
                     {t.name}
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </span>
+                    <X size={10} strokeWidth={2.5} />
+                  </motion.span>
                 ))}
                 <button onClick={() => setShowTagPicker(true)}
-                  className="text-xs text-slate-400 hover:text-blue-500 transition-colors px-1.5 py-0.5 rounded hover:bg-blue-50"
+                  className="rounded px-1.5 py-0.5 text-xs text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-500"
                   title="添加标签">
                   + 标签
                 </button>
               </div>
             </div>
             {/* Editor */}
-            <div className="flex-1 overflow-auto bg-white relative">
+            <div className="relative flex-1 overflow-auto bg-slate-50 px-6 py-6">
               {editorMode === "rich" ? (
-                <div ref={editorRef} className="w-full h-full p-6 pb-10 max-w-3xl mx-auto outline-none text-base leading-relaxed"
+                <motion.div
+                  ref={editorRef}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22 }}
+                  className="mx-auto min-h-full w-full max-w-4xl rounded-lg border border-slate-200 bg-white p-8 pb-16 text-base leading-7 shadow-sm outline-none"
                   contentEditable suppressContentEditableWarning onInput={handleEditorInput}
                   style={{ minHeight: "100%" }} data-placeholder="开始写笔记..." />
               ) : (
-                <textarea
-                  className="w-full h-full p-6 pb-10 max-w-3xl mx-auto outline-none text-base leading-relaxed font-mono resize-none border-0 focus:ring-0"
+                <motion.textarea
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22 }}
+                  className="mx-auto min-h-full w-full max-w-4xl resize-none rounded-lg border border-slate-200 bg-white p-8 pb-16 font-mono text-base leading-7 shadow-sm outline-none focus:ring-0"
                   value={mdText}
                   onChange={(e) => { setMdText(e.target.value); scheduleSave(); }}
                   style={{ minHeight: "100%" }}
                   placeholder="使用 Markdown 语法编写..."
                 />
               )}
-              <div className="absolute bottom-3 right-4 text-[11px] text-slate-400 select-none pointer-events-none bg-white/80 px-2 py-0.5 rounded shadow-sm">
+              <div className="pointer-events-none absolute bottom-8 right-10 select-none rounded-full bg-white/90 px-2.5 py-1 text-[11px] text-slate-400 shadow-sm ring-1 ring-slate-100">
                 字数：{getWordCount()}
               </div>
             </div>
@@ -587,71 +756,223 @@ export default function KBDetail() {
 
       {!subSidebarOpen && (<SubToggle />)}
 
+      <AnimatePresence>
+        {insertDialog && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+            onClick={closeInsertDialog}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.form
+              className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+              onSubmit={handleInsertSubmit}
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    {insertDialog === "image" ? "插入图片" : insertDialog === "link" ? "插入链接" : "插入表格"}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {insertDialog === "table" ? "设置行列数后插入到当前光标位置。" : "内容会插入到当前编辑光标位置。"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeInsertDialog}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                  title="关闭"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {insertDialog === "image" && (
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-slate-700">图片地址</span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://example.com/image.png"
+                    autoFocus
+                  />
+                </label>
+              )}
+
+              {insertDialog === "link" && (
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-slate-700">链接地址</span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://example.com"
+                    autoFocus
+                  />
+                </label>
+              )}
+
+              {insertDialog === "table" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-700">行数</span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={tableRows}
+                      onChange={(e) => setTableRows(e.target.value)}
+                      autoFocus
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-700">列数</span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={tableCols}
+                      onChange={(e) => setTableCols(e.target.value)}
+                    />
+                  </label>
+                </div>
+              )}
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button type="button" onClick={closeInsertDialog} className="rounded-lg px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100">
+                  取消
+                </button>
+                <button type="submit" className="rounded-lg bg-slate-950 px-5 py-2 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md active:translate-y-0">
+                  插入
+                </button>
+              </div>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
             {/* Tag Picker */}
+      <AnimatePresence>
       {showTagPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowTagPicker(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-slate-800 mb-4">选择标签</h3>
-            <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setShowTagPicker(false)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 18, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <h3 className="mb-1 text-base font-semibold text-slate-950">选择标签</h3>
+            <p className="mb-4 text-sm text-slate-500">为当前笔记添加一个标签。</p>
+            <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
               {allTags.filter((t: any) => !noteTags.find((nt: any) => nt.id === t.id)).length === 0 ? (
-                <div className="text-sm text-slate-400 py-4 w-full text-center">没有可用的标签</div>
+                <div className="w-full rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">没有可用的标签</div>
               ) : (
                 allTags.filter((t: any) => !noteTags.find((nt: any) => nt.id === t.id)).map((t: any) => (
-                  <button key={t.id} onClick={() => handleAddTag(t.id)}
+                  <motion.button key={t.id} onClick={() => handleAddTag(t.id)}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.96 }}
                     className="px-3 py-1.5 rounded-lg text-sm border hover:shadow-sm transition-all"
                     style={{ borderColor: t.color + "40", backgroundColor: t.color + "10", color: t.color }}>
                     {t.name}
-                  </button>
+                  </motion.button>
                 ))
               )}
             </div>
-            <div className="flex justify-end mt-4">
+            <div className="mt-4 flex justify-end">
               <button onClick={() => setShowTagPicker(false)}
-                className="px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">关闭</button>
+                className="rounded-lg px-4 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100">关闭</button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
       
+      <AnimatePresence>
       {showShareModal && shareToken && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowShareModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-slate-800 mb-4">分享笔记</h2>
-            <div className="text-sm text-slate-600 mb-3">链接已生成，复制发送给他人即可查看：</div>
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setShowShareModal(false)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 18, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <h2 className="mb-1 text-lg font-semibold text-slate-950">分享笔记</h2>
+            <div className="mb-4 text-sm text-slate-500">链接已生成，复制发送给他人即可查看。</div>
             <div className="flex gap-2">
-              <input className="flex-1 border rounded px-3 py-2 text-sm bg-slate-50" readOnly value={window.location.origin + "/shared/" + shareToken} onClick={(e) => (e.target as HTMLInputElement).select()} />
-              <button onClick={() => { navigator.clipboard.writeText(window.location.origin + "/shared/" + shareToken); }} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">复制</button>
+              <input className="h-10 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm" readOnly value={window.location.origin + "/shared/" + shareToken} onClick={(e) => (e.target as HTMLInputElement).select()} />
+              <button onClick={() => { navigator.clipboard.writeText(window.location.origin + "/shared/" + shareToken); }} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">复制</button>
             </div>
-            <div className="flex gap-3 justify-end mt-5">
-              <button onClick={handleUnshare} className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition">取消分享</button>
-              <button onClick={() => setShowShareModal(false)} className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 rounded-lg transition">关闭</button>
+            <div className="mt-5 flex justify-end gap-3">
+              <button onClick={handleUnshare} className="rounded-lg px-4 py-2 text-sm text-red-600 transition hover:bg-red-50">取消分享</button>
+              <button onClick={() => setShowShareModal(false)} className="rounded-lg bg-slate-100 px-4 py-2 text-sm transition hover:bg-slate-200">关闭</button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
+      <AnimatePresence>
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-slate-800 mb-5">
-              {CREATE_OPTIONS.find((o) => o.type === createType)?.icon} {CREATE_OPTIONS.find((o) => o.type === createType)?.label}
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setShowCreateModal(false)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 18, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <h2 className="mb-5 text-lg font-semibold text-slate-950">
+              {CREATE_OPTIONS.find((o) => o.type === createType)?.label}
             </h2>
             <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }}>
               <div className="mb-5">
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">名称</label>
-                <input className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">名称</label>
+                <input className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
                   value={newTitle} onChange={(e) => setNewTitle(e.target.value)} autoFocus required />
               </div>
-              <div className="flex gap-3 justify-end">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">取消</button>
-                <button type="submit" className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">创建</button>
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setShowCreateModal(false)} className="rounded-lg px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100">取消</button>
+                <button type="submit" className="rounded-lg bg-slate-950 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-800">创建</button>
               </div>
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
-      <style dangerouslySetInnerHTML={{ __html: "@keyframes fade-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in{animation:fade-in .15s ease-out}.tb-btn{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;font-size:12px;color:#475569;transition:all .15s;flex-shrink:0;cursor:pointer;background:none;border:none;padding:0;outline:none}.tb-btn:hover{background-color:#f1f5f9;color:#1e40af}" }} />
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes fade-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in{animation:fade-in .15s ease-out}.tb-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;font-size:12px;color:#475569;transition:all .15s;flex-shrink:0;cursor:pointer;background:none;border:none;padding:0;outline:none}.tb-btn:hover{background-color:#f1f5f9;color:#0f172a}.tb-btn:focus-visible{box-shadow:0 0 0 2px #cbd5e1}" }} />
 
     </div>
   );

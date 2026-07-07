@@ -70,7 +70,7 @@ export default function Layout() {
   }, []);
 
   return (
-    <div className="flex h-full overflow-hidden bg-white text-neutral-900">
+    <div className="flex h-full flex-col overflow-hidden bg-white text-neutral-900 md:flex-row">
       <Sidebar
         open={open}
         setOpen={(next) => {
@@ -84,7 +84,7 @@ export default function Layout() {
       >
         <SidebarBody
           onMouseLeave={() => setAccountMenuOpen(false)}
-          className="border-r border-neutral-200 bg-neutral-50 px-6 py-8 text-neutral-700"
+          className="border-r border-neutral-200 bg-neutral-50 px-5 py-8 text-neutral-700"
           style={{ "--sidebar-open": open ? 1 : 0 } as CSSProperties}
         >
           <div className="flex min-h-0 flex-1 flex-col">
@@ -120,7 +120,7 @@ export default function Layout() {
 
             <div className="relative mt-auto pb-1">
               {accountMenuOpen && open && (
-                <div className="absolute bottom-[58px] left-[-2px] w-[365px] animate-[account-menu-in_180ms_cubic-bezier(0.16,1,0.3,1)] rounded-2xl border border-neutral-200 bg-white/95 p-3 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur">
+                <div className="absolute bottom-[58px] left-[-2px] w-[220px] animate-[account-menu-in_180ms_cubic-bezier(0.16,1,0.3,1)] rounded-2xl border border-neutral-200 bg-white/95 p-3 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur">
                   <div className="flex h-9 items-center gap-3 border-b border-neutral-200 px-2 pb-3 text-sm text-neutral-400">
                     <IconUserCircle size={18} stroke={1.8} />
                     <span>已通过用户名登录</span>
@@ -185,7 +185,7 @@ export default function Layout() {
         </SidebarBody>
       </Sidebar>
 
-      <main className="min-w-0 flex-1 overflow-auto rounded-l-[22px] border border-neutral-200 bg-white">
+      <main className="min-h-0 min-w-0 flex-1 overflow-auto border border-neutral-200 bg-white md:rounded-l-[22px]">
         <Outlet />
       </main>
     </div>

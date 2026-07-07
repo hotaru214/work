@@ -1,10 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
+import { ArchiveRestore, BookOpen, FileText, Plus, Search, Trash2, X } from "lucide-react";
 import { api } from "../../api/client";
 import { CardGridSkeleton } from "../../components/skeleton/Skeletons";
 import { useMutationToast } from "../../components/ui/toast";
 import { useKbRoots, useKbTrash, usePrefetchKbNote } from "../../hooks/api";
+import {
+  EmptyState,
+  IconBadge,
+  PageShell,
+  PrimaryButton,
+  SecondaryButton,
+  Surface,
+  TextAreaField,
+  TextField,
+} from "../../components/PageScaffold";
 
 export default function KBList() {
   const navigate = useNavigate();
@@ -16,12 +28,13 @@ export default function KBList() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [showTrash, setShowTrash] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const { data: trashItems = [], isLoading: trashLoading, refetch: refetchTrash } = useKbTrash(showTrash);
-  async function handleDelete(e: React.MouseEvent, noteId: string, title: string) {
-    e.stopPropagation();
-    if (!confirm(`确认删除知识库「${title}」？该操作将同时删除其所有子内容。`)) return;
+
+  async function handleDelete(noteId: string) {
     try {
       await api.kb.deleteNote(noteId);
+      setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: ["kb-roots"] });
       queryClient.invalidateQueries({ queryKey: ["kb-trash"] });
       toast.success("已删除知识库");
@@ -36,28 +49,15 @@ export default function KBList() {
     if (!name.trim()) return;
     try {
       const result = await api.kb.createNote("__root__", name.trim(), desc.trim(), "book");
-      setName(""); setDesc(""); setShowModal(false);
+      setName("");
+      setDesc("");
+      setShowModal(false);
       queryClient.invalidateQueries({ queryKey: ["kb-roots"] });
       navigate(`/kb/${result.note.noteId}`);
     } catch {
       toast.error("创建失败");
     }
   }
-
-  function fmtDate(d: string) {
-    try { return new Date(d).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
-    catch { return d; }
-  }
-
-  function getNoteIcon(type: string): string {
-    const icons: Record<string, string> = { text: "📄", code: "💻", book: "📚", image: "🖼️", file: "📎", "relation-map": "🔗", mermaid: "📊" };
-    return icons[type] || "📄";
-  }
-
-  function countChildren(n: any): number {
-    return n.children ? n.children.length : 0;
-  }
-
 
   async function openTrash() {
     setShowTrash(true);
@@ -77,144 +77,228 @@ export default function KBList() {
   }
 
   return (
-    <div className="p-6 h-full overflow-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">知识库</h1>
-          <p className="text-sm text-slate-500 mt-1">浏览和管理你的所有笔记</p>
-        </div>
-        <button onClick={() => { setName(""); setDesc(""); setShowModal(true); }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm font-medium text-sm">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-                    新建知识库
-        </button>
-        <button onClick={openTrash}
-          className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-300 text-slate-600 rounded-xl hover:bg-slate-50 hover:text-slate-800 transition-colors shadow-sm font-medium text-sm">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          </svg>
-          回收站
-        </button>
-      </div>
-
+    <PageShell
+      title="知识库"
+      description="管理笔记根目录、资料结构和回收站，后续可以进入知识库继续编辑正文。"
+      actions={
+        <>
+          <SecondaryButton onClick={openTrash}>
+            <Trash2 size={16} />
+            回收站
+          </SecondaryButton>
+          <PrimaryButton onClick={() => { setName(""); setDesc(""); setShowModal(true); }}>
+            <Plus size={16} />
+            新建知识库
+          </PrimaryButton>
+        </>
+      }
+    >
       {loading ? (
         <CardGridSkeleton cards={8} />
       ) : notes.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {notes.map((n: any) => (
-            <div key={n.noteId}
-              className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-blue-300 cursor-pointer transition-all group relative"
-              onMouseEnter={() => prefetchKbNote(n.noteId)}
-              onFocus={() => prefetchKbNote(n.noteId)}
-              onClick={() => navigate(`/kb/${n.noteId}`)}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {notes.map((note: any, index: number) => (
+            <motion.button
+              key={note.noteId}
+              type="button"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.24, delay: Math.min(index * 0.035, 0.24), ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.985 }}
+              className="group relative rounded-lg border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+              onMouseEnter={() => prefetchKbNote(note.noteId)}
+              onFocus={() => prefetchKbNote(note.noteId)}
+              onClick={() => navigate(`/kb/${note.noteId}`)}
             >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-3xl">{getNoteIcon(n.type)}</span>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-slate-800 text-base truncate group-hover:text-blue-600 transition-colors">{n.title || "未命名"}</h3>
-                  <span className="text-xs text-slate-400">{n.type === "book" ? "知识库" : `${n.type} 笔记`}</span>
-                </div>
+              <span className="pointer-events-none absolute inset-x-5 top-0 h-px scale-x-0 bg-slate-950/40 transition duration-300 group-hover:scale-x-100" />
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <IconBadge icon={note.type === "book" ? BookOpen : FileText} tone="violet" />
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setDeleteTarget(note);
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
+                  title="删除知识库"
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
-              <button onClick={(e) => handleDelete(e, n.noteId, n.title)}
-                className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all text-sm"
-                title="删除知识库">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
-                            <div className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-                <span>{countChildren(n)} 个子节点</span>
-                <span>{n.dateModified ? fmtDate(n.dateModified) : ""}</span>
+              <h3 className="truncate text-base font-semibold text-slate-950">{note.title || "未命名"}</h3>
+              <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
+                {note.content || note.description || "进入后补充章节、资料和正文。"}
+              </p>
+              <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-400">
+                <span>{countChildren(note)} 个子节点</span>
+                <span>{note.dateModified ? fmtDate(note.dateModified) : ""}</span>
               </div>
-            </div>
+            </motion.button>
           ))}
         </div>
       ) : (
-        <div className="text-center py-16 text-slate-400">
-          <div className="text-6xl mb-4">📚</div>
-          <div className="text-lg mb-4">还没有知识库</div>
-          <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
-            创建第一个
-          </button>
-        </div>
+        <EmptyState
+          title="还没有知识库"
+          description="创建一个知识库，用于归档课程笔记、资料和复习内容。"
+          icon={BookOpen}
+          action={<PrimaryButton onClick={() => setShowModal(true)}>创建第一个</PrimaryButton>}
+        />
       )}
 
+      <AnimatePresence>
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-slate-800 mb-5">新建知识库</h2>
-            <form onSubmit={onCreate}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">名称</label>
-                <input className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
-                  placeholder="输入知识库名称" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setShowModal(false)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+            onClick={(e: any) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">新建知识库</h2>
+                <p className="mt-1 text-sm text-slate-500">作为根目录创建，后续可继续添加子节点。</p>
               </div>
-              <div className="mb-5">
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">描述</label>
-                <textarea className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition resize-none"
-                  placeholder="简要描述" value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} />
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">取消</button>
-                <button type="submit" className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">创建</button>
+              <button onClick={() => setShowModal(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={onCreate} className="space-y-3">
+              <TextField placeholder="知识库名称" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
+              <TextAreaField placeholder="简要描述" value={desc} onChange={(e) => setDesc(e.target.value)} rows={4} />
+              <div className="flex justify-end gap-3 pt-2">
+                <SecondaryButton type="button" onClick={() => setShowModal(false)}>取消</SecondaryButton>
+                <PrimaryButton type="submit">创建</PrimaryButton>
               </div>
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
-    
-      {/* Recycle Bin Modal */}
+      </AnimatePresence>
+
+      <AnimatePresence>
       {showTrash && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowTrash(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-800">回收站</h2>
-              <button onClick={() => setShowTrash(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setShowTrash(false)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-slate-200 bg-white shadow-2xl"
+            onClick={(e: any) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">回收站</h2>
+                <p className="mt-1 text-sm text-slate-500">恢复误删的知识库节点。</p>
+              </div>
+              <button onClick={() => setShowTrash(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <X size={18} />
+              </button>
             </div>
-            <div className="flex-1 overflow-auto p-4">
+            <div className="min-h-0 flex-1 overflow-auto p-4">
               {trashLoading ? (
-                <div className="flex items-center justify-center py-12 text-slate-400">
-                  <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
+                <div className="flex items-center justify-center py-12 text-sm text-slate-400">
+                  <Search className="mr-2 h-4 w-4 animate-spin" />
                   加载中...
                 </div>
               ) : trashItems.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
-                  <div className="text-4xl mb-3">🗑️</div>
-                  <div>回收站是空的</div>
-                </div>
+                <EmptyState title="回收站是空的" icon={Trash2} />
               ) : (
                 <div className="space-y-2">
-                  {trashItems.map((item: any) => (
-                    <div key={item.noteId}
-                      className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3 border border-slate-200">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <span className="text-lg shrink-0">{item.type === "book" ? "📖" : "📄"}</span>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-slate-700 truncate">{item.title || "未命名"}</div>
-                          <div className="text-xs text-slate-400">
-                            删除于 {new Date(item.deletedAt).toLocaleString("zh-CN")}
-                            {item.parentTitle ? <span> · 原位于 {item.parentTitle}</span> : ""}
-                          </div>
+                  {trashItems.map((item: any, index: number) => (
+                    <motion.div
+                      key={item.noteId}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: Math.min(index * 0.035, 0.18) }}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-slate-800">{item.title || "未命名"}</div>
+                        <div className="mt-0.5 text-xs text-slate-400">
+                          删除于 {new Date(item.deletedAt).toLocaleString("zh-CN")}
+                          {item.parentTitle ? <span> · 原位于 {item.parentTitle}</span> : null}
                         </div>
                       </div>
-                      <button onClick={() => restoreFromTrash(item.noteId)}
-                        className="shrink-0 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors">
+                      <SecondaryButton onClick={() => restoreFromTrash(item.noteId)} className="h-9 px-3 text-blue-600">
+                        <ArchiveRestore size={15} />
                         恢复
-                      </button>
-                    </div>
+                      </SecondaryButton>
+                    </motion.div>
                   ))}
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
-    </div>
+      <AnimatePresence>
+      {deleteTarget && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setDeleteTarget(null)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+            onClick={(e: any) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">删除知识库</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">该操作会同时删除其所有子内容。</p>
+              </div>
+              <button onClick={() => setDeleteTarget(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-4 text-sm font-medium text-slate-800">{deleteTarget.title || "未命名"}</div>
+            <div className="mt-5 flex justify-end gap-3">
+              <SecondaryButton type="button" onClick={() => setDeleteTarget(null)}>取消</SecondaryButton>
+              <PrimaryButton type="button" className="bg-rose-600 hover:bg-rose-500 focus-visible:ring-rose-300" onClick={() => handleDelete(deleteTarget.noteId)}>
+                <Trash2 size={16} />
+                删除
+              </PrimaryButton>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+      </AnimatePresence>
+    </PageShell>
   );
+}
+
+function fmtDate(value: string) {
+  try {
+    return new Date(value).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+  } catch {
+    return value;
+  }
+}
+
+function countChildren(note: any): number {
+  return note.children ? note.children.length : 0;
 }

@@ -72,7 +72,7 @@
 
 .gooey-nav-container.gooey-nav-vertical nav ul {
   flex-direction: column;
-  gap: 25px;
+  gap: 22px;
   padding: 0;
   color: rgb(17 24 39);
   text-shadow: none;
@@ -108,7 +108,7 @@
 
 .gooey-nav-container.gooey-nav-vertical nav ul li {
   width: 100%;
-  border-radius: 12px;
+  border-radius: 14px;
   color: rgb(17 24 39);
   text-shadow: none;
 }
@@ -230,7 +230,7 @@
   display: block;
   inset: 0;
   background: #000;
-  border-radius: 12px;
+  border-radius: 14px;
   opacity: 1;
   transform: scale(1);
   animation: none;

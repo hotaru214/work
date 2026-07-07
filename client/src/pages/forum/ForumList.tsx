@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { BadgeCheck, Eye, Heart, MessageCircle, PenLine } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { BadgeCheck, Eye, Heart, MessageCircle, PenLine, Plus } from "lucide-react";
+import { resolveAssetUrl } from "../../api/client";
 import { usePosts, usePrefetchPost } from "../../hooks/api";
 import { ListSkeleton } from "../../components/skeleton/Skeletons";
 import { cn } from "../../lib/utils";
@@ -36,19 +38,28 @@ function ForumTweetCard({
 }) {
   const author = post.author_nickname || post.author_name || "学习者";
   const username = post.author_username || post.username || "unknown";
-  const avatarUrl = post.author_avatar_url || post.avatar_url;
+  const avatarUrl = resolveAssetUrl(post.author_avatar_url || post.avatar_url);
   const content = stripHtml(post.content);
 
   return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+      whileHover={{ y: -4 }}
+    >
     <Link
       to={`/forum/${post.id}`}
       onMouseEnter={onPrefetch}
       onFocus={onPrefetch}
       className={cn(
-        "group block rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-sm transition-all duration-200",
-        "hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70"
+        "group relative block overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-sm transition-all duration-200",
+        "hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70"
       )}
     >
+      <span className="pointer-events-none absolute inset-x-5 top-0 h-px scale-x-0 bg-slate-950/40 transition duration-300 group-hover:scale-x-100" />
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-950 text-sm font-semibold text-white shadow-sm">
@@ -130,6 +141,7 @@ function ForumTweetCard({
         )}
       </div>
     </Link>
+    </motion.div>
   );
 }
 
@@ -167,21 +179,25 @@ export default function ForumList() {
   }, [setSearchParams]);
 
   return (
-    <div className="max-w-5xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">讨论区</h1>
-        <Link to="/forum/new" className="rounded bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">讨论区</h1>
+          <p className="mt-1 text-sm text-slate-500">整理课程问题、经验复盘和 AI 对话沉淀。</p>
+        </div>
+        <Link to="/forum/new" className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md active:translate-y-0">
+          <Plus size={16} />
           发布帖子
         </Link>
       </div>
 
-      <div className="mb-4 grid grid-cols-[auto_minmax(340px,1fr)] items-center gap-4">
+      <div className="mb-5 grid grid-cols-1 items-center gap-4 md:grid-cols-[auto_minmax(260px,1fr)]">
         <div className="flex items-center gap-3">
-          <button onClick={() => setSort("latest")} className={`rounded px-3 py-1 text-sm ${sort === "latest" ? "bg-slate-900 text-white" : "border bg-white"}`}>最新</button>
-          <button onClick={() => setSort("hot")} className={`rounded px-3 py-1 text-sm ${sort === "hot" ? "bg-slate-900 text-white" : "border bg-white"}`}>热门</button>
-          <button onClick={() => setSort("essence")} className={`rounded px-3 py-1 text-sm ${sort === "essence" ? "bg-slate-900 text-white" : "border bg-white"}`}>精华</button>
+          <button onClick={() => setSort("latest")} className={`rounded-lg px-3 py-1.5 text-sm transition ${sort === "latest" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>最新</button>
+          <button onClick={() => setSort("hot")} className={`rounded-lg px-3 py-1.5 text-sm transition ${sort === "hot" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>热门</button>
+          <button onClick={() => setSort("essence")} className={`rounded-lg px-3 py-1.5 text-sm transition ${sort === "essence" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>精华</button>
         </div>
-        <div className="justify-self-end">
+        <div className="justify-self-start md:justify-self-end">
           <GooeyInput
             placeholder="搜索标签或标题..."
             collapsedLabel="搜索"
@@ -204,16 +220,20 @@ export default function ForumList() {
       {loading ? (
         <ListSkeleton rows={5} />
       ) : posts.length === 0 ? (
-        <div className="text-slate-500">暂无帖子，快来发布第一条吧</div>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">
+          暂无帖子，快来发布第一条吧
+        </div>
       ) : (
         <div className="grid gap-4">
-          {posts.map((post: any) => (
-            <ForumTweetCard
-              key={post.id}
-              post={post}
-              onPrefetch={() => prefetchPost(post.id)}
-            />
-          ))}
+          <AnimatePresence initial={false}>
+            {posts.map((post: any) => (
+              <ForumTweetCard
+                key={post.id}
+                post={post}
+                onPrefetch={() => prefetchPost(post.id)}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </div>

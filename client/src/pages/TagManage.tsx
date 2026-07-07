@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { Edit3, Palette, Plus, Search, Tags, Trash2, X } from "lucide-react";
 import { useTags, useCreateTag, useUpdateTag, useDeleteTag } from "../hooks/api";
 import { useMutationToast } from "../components/ui/toast";
 import { GooeyInput } from "../components/ui/gooey-input";
+import {
+  EmptyState,
+  IconBadge,
+  MetricCard,
+  PageShell,
+  PrimaryButton,
+  SecondaryButton,
+  Surface,
+  TextField,
+} from "../components/PageScaffold";
 
 const PRESET_COLORS = [
   "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
@@ -16,6 +28,7 @@ export default function TagManage() {
   const [color, setColor] = useState("#6366f1");
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   useEffect(() => {
     const id = setTimeout(() => setDebounced(search), 250);
@@ -24,6 +37,8 @@ export default function TagManage() {
 
   const { data: rawTags, isLoading: loading } = useTags(debounced || undefined);
   const tags = Array.isArray(rawTags) ? rawTags : [];
+  const totalPosts = tags.reduce((sum: number, tag: any) => sum + Number(tag.post_count || 0), 0);
+  const totalNotes = tags.reduce((sum: number, tag: any) => sum + Number(tag.note_count || 0), 0);
 
   const toast = useMutationToast();
   const createMut = useCreateTag();
@@ -47,7 +62,7 @@ export default function TagManage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    toast.start(editingTag ? "更新中…" : "创建中…");
+    toast.start(editingTag ? "更新中..." : "创建中...");
     try {
       if (editingTag) {
         await updateMut.mutateAsync({ id: editingTag.id, data: { name: name.trim(), color } });
@@ -62,10 +77,10 @@ export default function TagManage() {
   }
 
   async function handleDelete(tag: any) {
-    if (!confirm(`确认删除标签「${tag.name}」？`)) return;
-    toast.start("删除中…");
+    toast.start("删除中...");
     try {
       await deleteMut.mutateAsync(tag.id);
+      setDeleteTarget(null);
       toast.success("已删除标签");
     } catch (err: any) {
       toast.error(err.message || "删除失败");
@@ -73,109 +88,203 @@ export default function TagManage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">标签管理</h1>
-          <p className="text-sm text-slate-500 mt-1">管理所有标签，共 {tags.length} 个标签</p>
-        </div>
-        <button onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
+    <PageShell
+      title="标签管理"
+      description="统一管理帖子和知识库共用的标签，颜色会同步用于筛选和内容标记。"
+      actions={
+        <PrimaryButton onClick={openCreate}>
+          <Plus size={16} />
           新建标签
-        </button>
+        </PrimaryButton>
+      }
+    >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <MetricCard label="标签数量" value={tags.length} hint="当前筛选结果" icon={Tags} tone="blue" />
+        <MetricCard label="关联帖子" value={totalPosts} hint="所有标签累计" icon={Search} tone="violet" />
+        <MetricCard label="关联笔记" value={totalNotes} hint="知识库标签使用量" icon={Palette} tone="emerald" />
       </div>
 
-      <div className="mb-4">
-        <GooeyInput
-          placeholder="搜索标签..."
-          collapsedLabel="搜索"
-          value={search}
-          onValueChange={setSearch}
-          collapsedWidth={118}
-          expandedWidth={240}
-          expandedOffset={58}
-          bubbleOffsetY={0}
-          classNames={{
-            root: "justify-start",
-            trigger: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900 hover:bg-slate-800",
-            bubbleSurface: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900",
-            input: "text-white placeholder:text-white/55",
-          }}
-        />
-      </div>
+      <Surface className="p-5">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-950">标签库</h2>
+            <p className="mt-1 text-xs text-slate-500">搜索、编辑或删除现有标签。</p>
+          </div>
+          <GooeyInput
+            placeholder="搜索标签..."
+            collapsedLabel="搜索"
+            value={search}
+            onValueChange={setSearch}
+            collapsedWidth={118}
+            expandedWidth={260}
+            expandedOffset={58}
+            bubbleOffsetY={0}
+            classNames={{
+              root: "justify-start",
+              trigger: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900 hover:bg-slate-800",
+              bubbleSurface: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900",
+              input: "text-white placeholder:text-white/55",
+            }}
+          />
+        </div>
 
-      {loading ? (
-        <div className="text-slate-400 py-8 text-center">加载中...</div>
-      ) : tags.length === 0 ? (
-        <div className="text-slate-400 py-8 text-center">暂无标签</div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {tags.map((tag: any) => (
-            <div key={tag.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-all flex items-center justify-between group">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
-                <div className="min-w-0">
-                  <div className="font-medium text-slate-800 text-sm truncate">{tag.name}</div>
-                  <div className="text-xs text-slate-400">
-                    帖子 {tag.post_count || 0} · 笔记 {tag.note_count || 0}
+        {loading ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="h-24 animate-pulse rounded-lg bg-slate-100" />
+            ))}
+          </div>
+        ) : tags.length === 0 ? (
+          <EmptyState title={search ? "没有匹配的标签" : "暂无标签"} description={search ? "换个关键词试试。" : "创建标签后可以用于帖子和知识库筛选。"} icon={Tags} />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <AnimatePresence initial={false}>
+            {tags.map((tag: any, index: number) => (
+              <motion.div
+                key={tag.id}
+                layout
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.22, delay: Math.min(index * 0.035, 0.2), ease: [0.16, 1, 0.3, 1] }}
+                whileHover={{ y: -4 }}
+                className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm"
+              >
+                <span className="pointer-events-none absolute inset-x-4 top-0 h-px scale-x-0 transition duration-300 group-hover:scale-x-100" style={{ backgroundColor: tag.color }} />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <motion.span
+                      className="h-10 w-10 shrink-0 rounded-lg ring-1 ring-black/5"
+                      style={{ backgroundColor: tag.color }}
+                      whileHover={{ rotate: 4, scale: 1.06 }}
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-950">{tag.name}</div>
+                      <div className="mt-1 text-xs text-slate-400">{tag.color}</div>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 gap-1 opacity-0 transition group-hover:opacity-100">
+                    <button onClick={() => openEdit(tag)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-blue-600" title="编辑">
+                      <Edit3 size={15} />
+                    </button>
+                    <button onClick={() => setDeleteTarget(tag)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-500" title="删除">
+                      <Trash2 size={15} />
+                    </button>
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => openEdit(tag)}
-                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
-                  title="编辑">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-                <button onClick={() => handleDelete(tag)}
-                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-50 text-slate-400 hover:text-red-500"
-                  title="删除">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <div className="text-slate-400">帖子</div>
+                    <div className="mt-1 font-semibold text-slate-800">{tag.post_count || 0}</div>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <div className="text-slate-400">笔记</div>
+                    <div className="mt-1 font-semibold text-slate-800">{tag.note_count || 0}</div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </Surface>
 
+      <AnimatePresence>
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-slate-800 mb-5">
-              {editingTag ? "编辑标签" : "新建标签"}
-            </h2>
-            <form onSubmit={handleSave}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">名称</label>
-                <input className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-                  value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setShowModal(false)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">{editingTag ? "编辑标签" : "新建标签"}</h2>
+                <p className="mt-1 text-sm text-slate-500">选择一个清晰的名称和颜色。</p>
               </div>
-              <div className="mb-5">
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">颜色</label>
+              <button onClick={() => setShowModal(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSave} className="space-y-4">
+              <TextField value={name} onChange={(e) => setName(e.target.value)} placeholder="标签名称" autoFocus required />
+              <div>
+                <div className="mb-2 text-sm font-medium text-slate-700">颜色</div>
                 <div className="flex flex-wrap gap-2">
-                  {PRESET_COLORS.map((c) => (
-                    <button key={c} type="button" onClick={() => setColor(c)}
-                      className={`w-7 h-7 rounded-full border-2 transition-all ${color === c ? "border-slate-800 scale-110" : "border-transparent"}`}
-                      style={{ backgroundColor: c }} />
+                  {PRESET_COLORS.map((preset) => (
+                    <motion.button
+                      key={preset}
+                      type="button"
+                      onClick={() => setColor(preset)}
+                      whileHover={{ y: -2, scale: 1.08 }}
+                      whileTap={{ scale: 0.94 }}
+                      className={`h-8 w-8 rounded-lg border-2 transition ${color === preset ? "scale-110 border-slate-950 shadow-md" : "border-transparent"}`}
+                      style={{ backgroundColor: preset }}
+                      aria-label={preset}
+                    />
                   ))}
                 </div>
               </div>
-              <div className="flex gap-3 justify-end">
-                <button type="button" onClick={() => setShowModal(false)}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">取消</button>
-                <button type="submit"
-                  className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
-                  {editingTag ? "保存" : "创建"}
-                </button>
+              <div className="flex justify-end gap-3 pt-2">
+                <SecondaryButton type="button" onClick={() => setShowModal(false)}>取消</SecondaryButton>
+                <PrimaryButton type="submit">{editingTag ? "保存" : "创建"}</PrimaryButton>
               </div>
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
-    </div>
+      </AnimatePresence>
+
+      <AnimatePresence>
+      {deleteTarget && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setDeleteTarget(null)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">删除标签</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">删除后，该标签会从关联内容中移除。</p>
+              </div>
+              <button onClick={() => setDeleteTarget(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-4">
+              <span className="h-8 w-8 rounded-lg ring-1 ring-black/5" style={{ backgroundColor: deleteTarget.color }} />
+              <span className="text-sm font-medium text-slate-800">{deleteTarget.name}</span>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <SecondaryButton type="button" onClick={() => setDeleteTarget(null)}>取消</SecondaryButton>
+              <PrimaryButton type="button" className="bg-rose-600 hover:bg-rose-500 focus-visible:ring-rose-300" onClick={() => handleDelete(deleteTarget)}>
+                <Trash2 size={16} />
+                删除
+              </PrimaryButton>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+      </AnimatePresence>
+    </PageShell>
   );
 }
