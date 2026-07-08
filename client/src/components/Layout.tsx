@@ -9,30 +9,32 @@
   IconUserCircle,
   IconUsers,
 } from "@tabler/icons-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { resolveAssetUrl, setToken } from "../api/client";
 import { useMe } from "../hooks/api";
+import { preloadPage, type PageLoaderKey } from "../pageLoaders";
 import GooeyNav from "./GooeyNav";
 import { Sidebar, SidebarBody } from "./ui/sidebar";
 
 const navs = [
-  { to: "/dashboard", label: "仪表盘", icon: IconChartBar },
-  { to: "/courses", label: "课程", icon: IconBook2 },
-  { to: "/chat", label: "对话", icon: IconMessageCircle },
-  { to: "/kb", label: "知识库", icon: IconDatabase },
-  { to: "/plan", label: "学习计划", icon: IconTargetArrow },
-  { to: "/forum", label: "讨论区", icon: IconUsers },
-  { to: "/tags", label: "标签管理", icon: IconTags },
-  { to: "/profile", label: "个人中心", icon: IconUserCircle },
-];
+  { to: "/dashboard", label: "仪表盘", icon: IconChartBar, loader: "dashboard" },
+  { to: "/courses", label: "课程", icon: IconBook2, loader: "courses" },
+  { to: "/chat", label: "对话", icon: IconMessageCircle, loader: "chat" },
+  { to: "/kb", label: "知识库", icon: IconDatabase, loader: "kbList" },
+  { to: "/plan", label: "学习计划", icon: IconTargetArrow, loader: "plan" },
+  { to: "/forum", label: "讨论区", icon: IconUsers, loader: "forumList" },
+  { to: "/tags", label: "标签管理", icon: IconTags, loader: "tagManage" },
+  { to: "/profile", label: "个人中心", icon: IconUserCircle, loader: "profile" },
+] satisfies Array<{ to: string; label: string; icon: typeof IconChartBar; loader: PageLoaderKey }>;
 
 
 export default function Layout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [profile, setProfile] = useState<{ username: string; nickname: string; avatar_url?: string | null } | null>(null);
@@ -62,6 +64,10 @@ export default function Layout() {
   useEffect(() => {
     if (profileData) setProfile(profileData);
   }, [profileData]);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [location.pathname, location.search]);
 
   // 仍保留：其他页面 dispatch 后立即同步（避免缓存失效延迟）
   useEffect(() => {
@@ -117,6 +123,7 @@ export default function Layout() {
                 timeVariance={120}
                 colors={[1, 1, 1, 2, 2, 3]}
                 labelClassName={revealClass}
+                onItemPrefetch={(_, index) => preloadPage(navs[index].loader)}
                 onItemClick={(item) => navigate(item.href)}
               />
             </nav>
@@ -188,7 +195,7 @@ export default function Layout() {
         </SidebarBody>
       </Sidebar>
 
-      <main className="min-h-0 min-w-0 flex-1 overflow-auto border border-neutral-200 bg-white md:rounded-l-[22px]">
+      <main ref={mainRef} className="min-h-0 min-w-0 flex-1 overflow-auto border border-neutral-200 bg-white md:rounded-l-[22px]">
         <Outlet />
       </main>
     </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type TreeNode = {
   noteId: string;
@@ -31,23 +31,66 @@ export default function VirtualTree({
   onPrefetch?: (item: TreeNode) => void;
 }) {
   const rows = useMemo(() => flattenTree(items), [items]);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<number | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(480);
 
-  function updateViewport(node: HTMLDivElement | null) {
-    if (node) setHeight(node.clientHeight);
+  useEffect(() => {
+    const node = scrollerRef.current;
+    if (!node) return;
+
+    setHeight(node.clientHeight || 480);
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      setHeight(entry.contentRect.height || 480);
+    });
+    resizeObserver.observe(node);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const node = scrollerRef.current;
+    if (!node || !activeId) return;
+    const index = rows.findIndex((item) => item.noteId === activeId);
+    if (index < 0) return;
+
+    const rowTop = index * ROW_HEIGHT;
+    const rowBottom = rowTop + ROW_HEIGHT;
+    const viewTop = node.scrollTop;
+    const viewBottom = viewTop + node.clientHeight;
+
+    if (rowTop < viewTop) {
+      node.scrollTo({ top: rowTop, behavior: "smooth" });
+    } else if (rowBottom > viewBottom) {
+      node.scrollTo({ top: rowBottom - node.clientHeight, behavior: "smooth" });
+    }
+  }, [activeId, rows]);
+
+  useEffect(() => {
+    return () => {
+      if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+    };
+  }, []);
+
+  function handleScroll(event: React.UIEvent<HTMLDivElement>) {
+    const nextTop = event.currentTarget.scrollTop;
+    if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = requestAnimationFrame(() => {
+      setScrollTop(nextTop);
+      frameRef.current = null;
+    });
   }
 
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
   const visibleCount = Math.ceil(height / ROW_HEIGHT) + OVERSCAN * 2;
   const visibleRows = rows.slice(start, start + visibleCount);
-  const icons: Record<string, string> = { text: "□", code: "<>", book: "▣", mermaid: "◇", "relation-map": "◎" };
+  const icons: Record<string, string> = { text: "TXT", code: "<>", book: "DIR", mermaid: "MM", "relation-map": "MAP" };
 
   return (
     <div
-      ref={updateViewport}
+      ref={scrollerRef}
       className="h-full overflow-auto"
-      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      onScroll={handleScroll}
     >
       <div className="relative" style={{ height: rows.length * ROW_HEIGHT }}>
         {visibleRows.map((item, index) => {
@@ -66,7 +109,7 @@ export default function VirtualTree({
               onFocus={() => onPrefetch?.(item)}
               onClick={() => onSelect(item)}
             >
-              <span className="w-5 shrink-0 text-xs text-slate-400">{icons[item.type] || "□"}</span>
+              <span className="w-7 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{icons[item.type] || "DOC"}</span>
               <span className="min-w-0 flex-1 truncate">{item.title || "未命名"}</span>
             </button>
           );

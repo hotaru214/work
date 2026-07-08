@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { ArchiveRestore, BookOpen, FileText, Plus, Search, Trash2, X } from "lucide-react";
+import { ArchiveRestore, BookOpen, FileText, Layers3, Plus, Search, Trash2, X } from "lucide-react";
 import { api } from "../../api/client";
 import { CardGridSkeleton } from "../../components/skeleton/Skeletons";
+import { GooeyInput } from "../../components/ui/gooey-input";
 import { useMutationToast } from "../../components/ui/toast";
 import { useKbRoots, useKbTrash, usePrefetchKbNote } from "../../hooks/api";
 import {
   EmptyState,
   IconBadge,
+  MetricCard,
   PageShell,
   PrimaryButton,
   SecondaryButton,
@@ -17,6 +19,7 @@ import {
   TextAreaField,
   TextField,
 } from "../../components/PageScaffold";
+import { preloadPage } from "../../pageLoaders";
 
 export default function KBList() {
   const navigate = useNavigate();
@@ -29,7 +32,30 @@ export default function KBList() {
   const [desc, setDesc] = useState("");
   const [showTrash, setShowTrash] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [search, setSearch] = useState("");
+  const [densityFilter, setDensityFilter] = useState<"all" | "structured" | "plain">("all");
   const { data: trashItems = [], isLoading: trashLoading, refetch: refetchTrash } = useKbTrash(showTrash);
+
+  const totalChildren = notes.reduce((sum: number, note: any) => sum + countChildren(note), 0);
+  const recentlyUpdated = useMemo(() => {
+    return [...notes]
+      .filter((note: any) => note.dateModified)
+      .sort((a: any, b: any) => new Date(b.dateModified).getTime() - new Date(a.dateModified).getTime())[0];
+  }, [notes]);
+  const filteredNotes = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    return notes.filter((note: any) => {
+      const childrenCount = countChildren(note);
+      if (densityFilter === "structured" && childrenCount === 0) return false;
+      if (densityFilter === "plain" && childrenCount > 0) return false;
+      if (!keyword) return true;
+      return [note.title, note.content, note.description]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [notes, search, densityFilter]);
 
   async function handleDelete(noteId: string) {
     try {
@@ -93,48 +119,98 @@ export default function KBList() {
         </>
       }
     >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <MetricCard label="知识库" value={notes.length} hint="根目录数量" icon={BookOpen} tone="violet" />
+        <MetricCard label="子节点" value={totalChildren} hint="已建立的内容结构" icon={Layers3} tone="blue" />
+        <MetricCard label="最近更新" value={recentlyUpdated ? fmtDate(recentlyUpdated.dateModified) : "暂无"} hint={recentlyUpdated?.title || "还没有编辑记录"} icon={FileText} tone="emerald" />
+      </div>
+
       {loading ? (
         <CardGridSkeleton cards={8} />
       ) : notes.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {notes.map((note: any, index: number) => (
-            <motion.button
-              key={note.noteId}
-              type="button"
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.24, delay: Math.min(index * 0.035, 0.24), ease: [0.16, 1, 0.3, 1] }}
-              whileHover={{ y: -4 }}
-              whileTap={{ scale: 0.985 }}
-              className="group relative rounded-lg border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
-              onMouseEnter={() => prefetchKbNote(note.noteId)}
-              onFocus={() => prefetchKbNote(note.noteId)}
-              onClick={() => navigate(`/kb/${note.noteId}`)}
-            >
-              <span className="pointer-events-none absolute inset-x-5 top-0 h-px scale-x-0 bg-slate-950/40 transition duration-300 group-hover:scale-x-100" />
-              <div className="mb-5 flex items-start justify-between gap-3">
-                <IconBadge icon={note.type === "book" ? BookOpen : FileText} tone="violet" />
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setDeleteTarget(note);
-                  }}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
-                  title="删除知识库"
+        <div className="space-y-4">
+          <Surface className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-950">知识库入口</div>
+              <div className="mt-1 text-xs text-slate-500">
+                当前显示 {filteredNotes.length} / {notes.length} 个根目录
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex max-w-full gap-2 overflow-x-auto pb-1 sm:pb-0">
+                <KbFilterChip active={densityFilter === "all"} onClick={() => setDensityFilter("all")}>全部</KbFilterChip>
+                <KbFilterChip active={densityFilter === "structured"} onClick={() => setDensityFilter("structured")}>有结构</KbFilterChip>
+                <KbFilterChip active={densityFilter === "plain"} onClick={() => setDensityFilter("plain")}>未展开</KbFilterChip>
+              </div>
+              <GooeyInput
+                placeholder="搜索知识库..."
+                collapsedLabel="搜索"
+                value={search}
+                onValueChange={setSearch}
+                collapsedWidth={104}
+                expandedWidth={250}
+                expandedOffset={50}
+                classNames={{
+                  root: "justify-start sm:justify-end",
+                  trigger: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900 hover:bg-slate-800",
+                  bubbleSurface: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900",
+                  input: "text-white placeholder:text-white/55",
+                }}
+              />
+            </div>
+          </Surface>
+
+          {filteredNotes.length === 0 ? (
+            <EmptyState title="没有匹配的知识库" description="换个关键词或切换筛选条件后再试。" icon={Search} />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {filteredNotes.map((note: any, index: number) => (
+                <motion.div
+                  key={note.noteId}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.24, delay: Math.min(index * 0.035, 0.24), ease: [0.16, 1, 0.3, 1] }}
+                  whileHover={{ y: -4 }}
+                  className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md"
                 >
-                  <Trash2 size={15} />
-                </button>
-              </div>
-              <h3 className="truncate text-base font-semibold text-slate-950">{note.title || "未命名"}</h3>
-              <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
-                {note.content || note.description || "进入后补充章节、资料和正文。"}
-              </p>
-              <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-400">
-                <span>{countChildren(note)} 个子节点</span>
-                <span>{note.dateModified ? fmtDate(note.dateModified) : ""}</span>
-              </div>
-            </motion.button>
-          ))}
+                  <span className="pointer-events-none absolute inset-x-5 top-0 h-px scale-x-0 bg-slate-950/40 transition duration-300 group-hover:scale-x-100" />
+                  <div className="mb-5 flex items-start justify-between gap-3">
+                    <IconBadge icon={note.type === "book" ? BookOpen : FileText} tone="violet" />
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(note)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
+                      title="删除知识库"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="block w-full text-left"
+                    onMouseEnter={() => {
+                      preloadPage("kbDetail");
+                      prefetchKbNote(note.noteId);
+                    }}
+                    onFocus={() => {
+                      preloadPage("kbDetail");
+                      prefetchKbNote(note.noteId);
+                    }}
+                    onClick={() => navigate(`/kb/${note.noteId}`)}
+                  >
+                    <h3 className="truncate text-base font-semibold text-slate-950 transition group-hover:text-violet-600">{note.title || "未命名"}</h3>
+                    <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
+                      {note.content || note.description || "进入后补充章节、资料和正文。"}
+                    </p>
+                    <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-400">
+                      <span>{countChildren(note)} 个子节点</span>
+                      <span>{note.dateModified ? fmtDate(note.dateModified) : ""}</span>
+                    </div>
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <EmptyState
@@ -301,4 +377,30 @@ function fmtDate(value: string) {
 
 function countChildren(note: any): number {
   return note.children ? note.children.length : 0;
+}
+
+function KbFilterChip({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileHover={{ y: -1 }}
+      whileTap={{ scale: 0.97 }}
+      className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+        active
+          ? "bg-slate-950 text-white shadow-sm"
+          : "border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-950"
+      }`}
+    >
+      {children}
+    </motion.button>
+  );
 }

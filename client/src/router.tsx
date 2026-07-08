@@ -5,20 +5,21 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { RouteErrorBoundary } from "./components/ErrorBoundary";
 import { PageSkeleton } from "./components/skeleton/Skeletons";
+import { pageLoaders } from "./pageLoaders";
 
-const Login = lazy(() => import("./pages/Login"));
-const Courses = lazy(() => import("./pages/Courses"));
-const CourseDetail = lazy(() => import("./pages/CourseDetail"));
-const Chat = lazy(() => import("./pages/Chat"));
-const Plan = lazy(() => import("./pages/Plan"));
-const Profile = lazy(() => import("./pages/Profile"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const KBList = lazy(() => import("./pages/kb/KBList"));
-const KBDetail = lazy(() => import("./pages/kb/KBDetail"));
-const ForumList = lazy(() => import("./pages/forum/ForumList"));
-const TagManage = lazy(() => import("./pages/TagManage"));
-const PostDetail = lazy(() => import("./pages/forum/PostDetail"));
-const PostEditor = lazy(() => import("./pages/forum/PostEditor"));
+const Login = lazy(pageLoaders.login);
+const Courses = lazy(pageLoaders.courses);
+const CourseDetail = lazy(pageLoaders.courseDetail);
+const Chat = lazy(pageLoaders.chat);
+const Plan = lazy(pageLoaders.plan);
+const Profile = lazy(pageLoaders.profile);
+const Dashboard = lazy(pageLoaders.dashboard);
+const KBList = lazy(pageLoaders.kbList);
+const KBDetail = lazy(pageLoaders.kbDetail);
+const ForumList = lazy(pageLoaders.forumList);
+const TagManage = lazy(pageLoaders.tagManage);
+const PostDetail = lazy(pageLoaders.postDetail);
+const PostEditor = lazy(pageLoaders.postEditor);
 
 function PageFallback() {
   return <PageSkeleton lines={5} />;

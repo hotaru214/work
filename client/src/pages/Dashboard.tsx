@@ -22,6 +22,7 @@ import {
   SectionTitle,
   Surface,
 } from "../components/PageScaffold";
+import { preloadPage } from "../pageLoaders";
 
 export default function Dashboard() {
   const { data, isLoading, error } = useDashboard();
@@ -61,7 +62,11 @@ export default function Dashboard() {
       eyebrow={today}
       description="把今日待办、课程进展和最近对话放在一个工作台里，减少来回切换。"
       actions={
-        <PrimaryButton onClick={() => navigate("/plan")}>
+        <PrimaryButton
+          onMouseEnter={() => preloadPage("plan")}
+          onFocus={() => preloadPage("plan")}
+          onClick={() => navigate("/plan")}
+        >
           <Route size={16} />
           新建计划
         </PrimaryButton>
@@ -127,7 +132,15 @@ export default function Dashboard() {
                   title="暂无对话记录"
                   description="创建一个课程对话，让 Agent 帮你梳理知识点。"
                   icon={MessageCircle}
-                  action={<PrimaryButton onClick={() => navigate("/chat")}>开始对话</PrimaryButton>}
+                  action={
+                    <PrimaryButton
+                      onMouseEnter={() => preloadPage("chat")}
+                      onFocus={() => preloadPage("chat")}
+                      onClick={() => navigate("/chat")}
+                    >
+                      开始对话
+                    </PrimaryButton>
+                  }
                 />
               </div>
             ) : (
@@ -140,6 +153,8 @@ export default function Dashboard() {
                     transition={{ duration: 0.22, delay: Math.min(index * 0.04, 0.2) }}
                     whileHover={{ x: 3 }}
                     className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-slate-50"
+                    onMouseEnter={() => preloadPage("chat")}
+                    onFocus={() => preloadPage("chat")}
                     onClick={() => navigate(`/chat/${session.id}`)}
                   >
                     <IconBadge icon={MessageCircle} tone="slate" />
@@ -157,7 +172,16 @@ export default function Dashboard() {
             <SectionTitle
               title={`学习计划 (${data.active_plans.length})`}
               description="正在推进的目标和每日投入。"
-              action={<Link className="text-xs font-medium text-slate-500 hover:text-slate-950" to="/plan">查看全部</Link>}
+              action={
+                <Link
+                  className="text-xs font-medium text-slate-500 hover:text-slate-950"
+                  to="/plan"
+                  onMouseEnter={() => preloadPage("plan")}
+                  onFocus={() => preloadPage("plan")}
+                >
+                  查看全部
+                </Link>
+              }
             />
             {data.active_plans.length === 0 ? (
               <div className="p-5">
@@ -165,7 +189,15 @@ export default function Dashboard() {
                   title="还没有学习计划"
                   description="给一个课程目标设置截止时间和每日投入。"
                   icon={Route}
-                  action={<PrimaryButton onClick={() => navigate("/plan")}>创建计划</PrimaryButton>}
+                  action={
+                    <PrimaryButton
+                      onMouseEnter={() => preloadPage("plan")}
+                      onFocus={() => preloadPage("plan")}
+                      onClick={() => navigate("/plan")}
+                    >
+                      创建计划
+                    </PrimaryButton>
+                  }
                 />
               </div>
             ) : (
