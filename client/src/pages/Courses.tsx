@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { BookOpen, CalendarDays, GraduationCap, Plus, UserRound } from "lucide-react";
+import { BookOpen, CalendarDays, GraduationCap, Layers3, Plus, Search, UserRound } from "lucide-react";
 import { useCourses, useCreateCourse, usePrefetchCourse } from "../hooks/api";
+import { preloadPage } from "../pageLoaders";
 import { CardGridSkeleton } from "../components/skeleton/Skeletons";
+import { GooeyInput } from "../components/ui/gooey-input";
 import {
   EmptyState,
   ErrorState,
   IconBadge,
+  MetricCard,
   PageShell,
   PrimaryButton,
   Surface,
@@ -23,6 +26,29 @@ export default function Courses() {
   const [intro, setIntro] = useState("");
   const [teacher, setTeacher] = useState("");
   const [semester, setSemester] = useState("");
+  const [search, setSearch] = useState("");
+  const [semesterFilter, setSemesterFilter] = useState("all");
+
+  const courses = items ?? [];
+  const semesters = useMemo(
+    () => Array.from(new Set(courses.map((course) => course.semester?.trim()).filter(Boolean))).sort(),
+    [courses]
+  );
+  const filteredCourses = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    return courses.filter((course) => {
+      const matchesSemester = semesterFilter === "all" || course.semester?.trim() === semesterFilter;
+      if (!matchesSemester) return false;
+      if (!keyword) return true;
+      return [course.name, course.intro, course.teacher, course.semester]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [courses, search, semesterFilter]);
+  const teacherCount = courses.filter((course) => course.teacher?.trim()).length;
+  const introCount = courses.filter((course) => course.intro?.trim()).length;
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -37,8 +63,14 @@ export default function Courses() {
     <PageShell
       title="课程"
       description="集中管理课程、资料入口和课程讨论，让学习内容按课程归档。"
-      actions={<div className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">共 {items?.length ?? 0} 门课程</div>}
+      actions={<div className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">共 {courses.length} 门课程</div>}
     >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <MetricCard label="课程数量" value={courses.length} hint="当前归档课程" icon={BookOpen} tone="blue" />
+        <MetricCard label="学期分布" value={semesters.length || "未设置"} hint="用于筛选课程阶段" icon={Layers3} tone="violet" />
+        <MetricCard label="简介完整度" value={`${courses.length ? Math.round((introCount / courses.length) * 100) : 0}%`} hint={`${teacherCount} 门已设置教师`} icon={GraduationCap} tone="emerald" progress={courses.length ? Math.round((introCount / courses.length) * 100) : 0} />
+      </div>
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
         <Surface className="h-fit p-5">
           <div className="mb-5 flex items-center gap-3">
@@ -62,7 +94,7 @@ export default function Courses() {
           </form>
         </Surface>
 
-        <div>
+        <div className="space-y-4">
           {error ? (
             <ErrorState message={(error as Error).message} />
           ) : isLoading ? (
@@ -70,8 +102,49 @@ export default function Courses() {
           ) : !items || items.length === 0 ? (
             <EmptyState title="暂无课程" description="先创建一门课程，再上传资料和开启课程对话。" icon={BookOpen} />
           ) : (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-              {items.map((course, index) => (
+            <>
+              <Surface className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-950">课程库</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    当前显示 {filteredCourses.length} / {courses.length} 门课程
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="flex max-w-full gap-2 overflow-x-auto pb-1 sm:pb-0">
+                    <FilterChip active={semesterFilter === "all"} onClick={() => setSemesterFilter("all")}>
+                      全部
+                    </FilterChip>
+                    {semesters.map((item) => (
+                      <FilterChip key={item} active={semesterFilter === item} onClick={() => setSemesterFilter(item)}>
+                        {item}
+                      </FilterChip>
+                    ))}
+                  </div>
+                  <GooeyInput
+                    placeholder="搜索课程、教师、学期..."
+                    collapsedLabel="搜索"
+                    value={search}
+                    onValueChange={setSearch}
+                    collapsedWidth={104}
+                    expandedWidth={270}
+                    expandedOffset={50}
+                    bubbleOffsetY={0}
+                    classNames={{
+                      root: "justify-start sm:justify-end",
+                      trigger: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900 hover:bg-slate-800",
+                      bubbleSurface: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900",
+                      input: "text-white placeholder:text-white/55",
+                    }}
+                  />
+                </div>
+              </Surface>
+
+              {filteredCourses.length === 0 ? (
+                <EmptyState title="没有匹配课程" description="换个关键词或清除学期筛选后再试。" icon={Search} />
+              ) : (
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+                  {filteredCourses.map((course, index) => (
                 <motion.div
                   key={course.id}
                   initial={{ opacity: 0, y: 14 }}
@@ -83,8 +156,14 @@ export default function Courses() {
                 <Link
                   to={`/courses/${course.id}`}
                   className="group relative block overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
-                  onMouseEnter={() => prefetchCourse(course.id)}
-                  onFocus={() => prefetchCourse(course.id)}
+                  onMouseEnter={() => {
+                    preloadPage("courseDetail");
+                    prefetchCourse(course.id);
+                  }}
+                  onFocus={() => {
+                    preloadPage("courseDetail");
+                    prefetchCourse(course.id);
+                  }}
                 >
                   <span className="pointer-events-none absolute inset-x-5 top-0 h-px scale-x-0 bg-blue-500/50 transition duration-300 group-hover:scale-x-100" />
                   <div className="mb-4 flex items-start justify-between gap-3">
@@ -110,10 +189,38 @@ export default function Courses() {
                 </Link>
                 </motion.div>
               ))}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
     </PageShell>
+  );
+}
+
+function FilterChip({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileHover={{ y: -1 }}
+      whileTap={{ scale: 0.97 }}
+      className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+        active
+          ? "bg-slate-950 text-white shadow-sm"
+          : "border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-950"
+      }`}
+    >
+      {children}
+    </motion.button>
   );
 }

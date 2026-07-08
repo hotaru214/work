@@ -8,6 +8,7 @@ type ErrorEventPayload = {
 };
 
 const BUFFER_KEY = "__app_error_events__";
+const MAX_BUFFER_SIZE = 30;
 
 function getBuffer(): ErrorEventPayload[] {
   if (typeof window === "undefined") return [];
@@ -22,9 +23,11 @@ export function reportError(error: unknown, source = "app", extra?: unknown) {
     route: typeof window !== "undefined" ? window.location.pathname : "",
     source,
     time: new Date().toISOString(),
-    extra,
+    extra: sanitizeExtra(extra),
   };
-  getBuffer().push(payload);
+  const buffer = getBuffer();
+  buffer.push(payload);
+  if (buffer.length > MAX_BUFFER_SIZE) buffer.splice(0, buffer.length - MAX_BUFFER_SIZE);
   console.error("[client-error]", payload);
 }
 
@@ -45,4 +48,13 @@ export function installGlobalErrorReporting() {
 
 export function getReportedErrors() {
   return getBuffer();
+}
+
+function sanitizeExtra(extra: unknown) {
+  if (extra == null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(extra));
+  } catch {
+    return String(extra);
+  }
 }

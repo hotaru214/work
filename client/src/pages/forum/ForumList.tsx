@@ -8,6 +8,8 @@ import { ListSkeleton } from "../../components/skeleton/Skeletons";
 import { cn } from "../../lib/utils";
 import { ProgressiveBlur } from "../../components/ui/progressive-blur";
 import { GooeyInput } from "../../components/ui/gooey-input";
+import { EmptyState, PageShell } from "../../components/PageScaffold";
+import { preloadPage } from "../../pageLoaders";
 
 function getInitial(name?: string) {
   return (name || "学").trim().slice(0, 1).toUpperCase();
@@ -179,50 +181,54 @@ export default function ForumList() {
   }, [setSearchParams]);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">讨论区</h1>
-          <p className="mt-1 text-sm text-slate-500">整理课程问题、经验复盘和 AI 对话沉淀。</p>
-        </div>
-        <Link to="/forum/new" className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md active:translate-y-0">
+    <PageShell
+      title="讨论区"
+      description="整理课程问题、经验复盘和 AI 对话沉淀。"
+      actions={
+        <Link
+          to="/forum/new"
+          onMouseEnter={() => preloadPage("postEditor")}
+          onFocus={() => preloadPage("postEditor")}
+          className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md active:translate-y-0"
+        >
           <Plus size={16} />
           发布帖子
         </Link>
-      </div>
-
-      <div className="mb-5 grid grid-cols-1 items-center gap-4 md:grid-cols-[auto_minmax(260px,1fr)]">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setSort("latest")} className={`rounded-lg px-3 py-1.5 text-sm transition ${sort === "latest" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>最新</button>
-          <button onClick={() => setSort("hot")} className={`rounded-lg px-3 py-1.5 text-sm transition ${sort === "hot" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>热门</button>
-          <button onClick={() => setSort("essence")} className={`rounded-lg px-3 py-1.5 text-sm transition ${sort === "essence" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>精华</button>
+      }
+    >
+      <div className="mx-auto grid w-full max-w-5xl gap-5">
+        <div className="rounded-lg border border-white/70 bg-white/75 p-3 shadow-sm backdrop-blur">
+          <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-[auto_minmax(260px,1fr)]">
+            <div className="flex flex-wrap items-center gap-3">
+              <button onClick={() => setSort("latest")} className={`rounded-lg px-3 py-1.5 text-sm transition ${sort === "latest" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>最新</button>
+              <button onClick={() => setSort("hot")} className={`rounded-lg px-3 py-1.5 text-sm transition ${sort === "hot" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>热门</button>
+              <button onClick={() => setSort("essence")} className={`rounded-lg px-3 py-1.5 text-sm transition ${sort === "essence" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>精华</button>
+            </div>
+            <div className="justify-self-start md:justify-self-end">
+              <GooeyInput
+                placeholder="搜索标签或标题..."
+                collapsedLabel="搜索"
+                value={inputVal}
+                onValueChange={handleSearchInput}
+                collapsedWidth={118}
+                expandedWidth={260}
+                expandedOffset={58}
+                bubbleOffsetY={0}
+                classNames={{
+                  root: "justify-start",
+                  trigger: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900 hover:bg-slate-800",
+                  bubbleSurface: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900",
+                  input: "text-white placeholder:text-white/55",
+                }}
+              />
+            </div>
+          </div>
         </div>
-        <div className="justify-self-start md:justify-self-end">
-          <GooeyInput
-            placeholder="搜索标签或标题..."
-            collapsedLabel="搜索"
-            value={inputVal}
-            onValueChange={handleSearchInput}
-            collapsedWidth={118}
-            expandedWidth={260}
-            expandedOffset={58}
-            bubbleOffsetY={0}
-            classNames={{
-              root: "justify-start",
-              trigger: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900 hover:bg-slate-800",
-              bubbleSurface: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900",
-              input: "text-white placeholder:text-white/55",
-            }}
-          />
-        </div>
-      </div>
 
       {loading ? (
         <ListSkeleton rows={5} />
       ) : posts.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">
-          暂无帖子，快来发布第一条吧
-        </div>
+        <EmptyState title="暂无帖子" description="可以先发布第一条课程问题或复盘。" icon={MessageCircle} />
       ) : (
         <div className="grid gap-4">
           <AnimatePresence initial={false}>
@@ -230,12 +236,16 @@ export default function ForumList() {
               <ForumTweetCard
                 key={post.id}
                 post={post}
-                onPrefetch={() => prefetchPost(post.id)}
+                onPrefetch={() => {
+                  preloadPage("postDetail");
+                  prefetchPost(post.id);
+                }}
               />
             ))}
           </AnimatePresence>
         </div>
       )}
     </div>
+    </PageShell>
   );
 }

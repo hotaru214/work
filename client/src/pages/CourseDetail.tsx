@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
@@ -13,12 +13,14 @@ import {
   MessageCircle,
   PenLine,
   PlayCircle,
+  Search,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { api, getToken } from "../api/client";
 import { useCourse, useDeleteMaterial, useMaterials, usePosts, usePrefetchPost } from "../hooks/api";
+import { GooeyInput } from "../components/ui/gooey-input";
 import { useMutationToast } from "../components/ui/toast";
 import {
   EmptyState,
@@ -29,6 +31,7 @@ import {
   SecondaryButton,
   Surface,
 } from "../components/PageScaffold";
+import { preloadPage } from "../pageLoaders";
 
 function getFileType(filename: string): "image" | "pdf" | "video" | "audio" | "text" | "other" {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
@@ -39,6 +42,8 @@ function getFileType(filename: string): "image" | "pdf" | "video" | "audio" | "t
   if (["txt", "md", "csv", "json", "xml", "yaml", "yml", "log", "py", "js", "ts", "tsx", "jsx", "html", "css", "sql", "sh", "bat"].includes(ext)) return "text";
   return "other";
 }
+
+type FileType = ReturnType<typeof getFileType>;
 
 export default function CourseDetail() {
   const { id } = useParams();
@@ -57,6 +62,8 @@ export default function CourseDetail() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState("");
   const [deletingMaterial, setDeletingMaterial] = useState<any | null>(null);
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [materialTypeFilter, setMaterialTypeFilter] = useState<FileType | "all">("all");
 
   async function onUpload(e: React.FormEvent) {
     e.preventDefault();
@@ -141,6 +148,19 @@ export default function CourseDetail() {
     acc[type] = (acc[type] || 0) + 1;
     return acc;
   }, {});
+  const filteredMaterials = useMemo(() => {
+    const keyword = materialSearch.trim().toLowerCase();
+    return materials.filter((material: any) => {
+      const type = getFileType(material.filename);
+      if (materialTypeFilter !== "all" && type !== materialTypeFilter) return false;
+      if (!keyword) return true;
+      return [material.filename, type, fileTypeLabel(type)]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [materials, materialSearch, materialTypeFilter]);
 
   return (
     <PageShell
@@ -149,11 +169,19 @@ export default function CourseDetail() {
       description={course.intro || "暂无简介，可以先上传资料或开始课程对话。"}
       actions={
         <>
-          <SecondaryButton onClick={() => navigate(`/forum?course_id=${courseId}`)}>
+          <SecondaryButton
+            onMouseEnter={() => preloadPage("forumList")}
+            onFocus={() => preloadPage("forumList")}
+            onClick={() => navigate(`/forum?course_id=${courseId}`)}
+          >
             <MessageCircle size={16} />
             课程讨论区
           </SecondaryButton>
-          <PrimaryButton onClick={startChat}>
+          <PrimaryButton
+            onMouseEnter={() => preloadPage("chat")}
+            onFocus={() => preloadPage("chat")}
+            onClick={startChat}
+          >
             <PenLine size={16} />
             开始课程对话
           </PrimaryButton>
@@ -169,12 +197,12 @@ export default function CourseDetail() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(300px,340px)]">
         <div className="space-y-6">
           <Surface>
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-slate-950">学习资料</h2>
                 <p className="mt-1 text-xs text-slate-500">上传课件、笔记和参考文件，支持常见格式在线预览。</p>
               </div>
-              <form onSubmit={onUpload} className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+              <form onSubmit={onUpload} className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
                 <label className="group flex h-10 max-w-full cursor-pointer items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 text-sm text-slate-500 transition hover:-translate-y-0.5 hover:border-slate-400 hover:bg-white hover:text-slate-900">
                   <Upload size={15} className="transition group-hover:-translate-y-0.5" />
                   <span className="max-w-[180px] truncate">{selectedFileName || "选择资料文件"}</span>
@@ -197,18 +225,57 @@ export default function CourseDetail() {
                 <EmptyState title="暂无资料" description="上传课件、讲义或笔记后会在这里统一管理。" icon={FileArchive} />
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
-                <AnimatePresence initial={false}>
-                  {materials.map((material: any, index: number) => (
-                    <MaterialRow
-                      key={material.id}
-                      material={material}
-                      index={index}
-                      onPreview={handlePreview}
-                      onDelete={() => setDeletingMaterial(material)}
+              <div>
+                <div className="flex flex-col gap-4 border-b border-slate-100 bg-slate-50/50 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="text-xs text-slate-500">
+                    当前显示 {filteredMaterials.length} / {materials.length} 个文件
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="flex max-w-full gap-2 overflow-x-auto pb-1 sm:pb-0">
+                      <MaterialFilterChip active={materialTypeFilter === "all"} onClick={() => setMaterialTypeFilter("all")}>全部</MaterialFilterChip>
+                      {(["text", "image", "video", "audio", "pdf", "other"] as Array<FileType>).map((type) => (
+                        <MaterialFilterChip key={type} active={materialTypeFilter === type} onClick={() => setMaterialTypeFilter(type)}>
+                          {fileTypeLabel(type)}
+                        </MaterialFilterChip>
+                      ))}
+                    </div>
+                    <GooeyInput
+                      placeholder="搜索资料文件..."
+                      collapsedLabel="搜索"
+                      value={materialSearch}
+                      onValueChange={setMaterialSearch}
+                      collapsedWidth={104}
+                      expandedWidth={250}
+                      expandedOffset={50}
+                      classNames={{
+                        root: "justify-start sm:justify-end",
+                        trigger: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900 hover:bg-slate-800",
+                        bubbleSurface: "bg-slate-950 text-white shadow-sm ring-1 ring-slate-900",
+                        input: "text-white placeholder:text-white/55",
+                      }}
                     />
-                  ))}
-                </AnimatePresence>
+                  </div>
+                </div>
+
+                {filteredMaterials.length === 0 ? (
+                  <div className="p-5">
+                    <EmptyState title="没有匹配资料" description="换个关键词或切换类型筛选后再试。" icon={Search} />
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    <AnimatePresence initial={false}>
+                      {filteredMaterials.map((material: any, index: number) => (
+                        <MaterialRow
+                          key={material.id}
+                          material={material}
+                          index={index}
+                          onPreview={handlePreview}
+                          onDelete={() => setDeletingMaterial(material)}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                )}
               </div>
             )}
           </Surface>
@@ -219,16 +286,23 @@ export default function CourseDetail() {
             <h2 className="text-sm font-semibold text-slate-950">资料类型</h2>
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
               {[
-                { label: "文档", value: typeCounts.text || 0, icon: FileText },
-                { label: "图片", value: typeCounts.image || 0, icon: FileImage },
-                { label: "视频", value: typeCounts.video || 0, icon: PlayCircle },
-                { label: "其他", value: typeCounts.other || 0, icon: FileArchive },
+                { label: "文档", type: "text" as FileType, value: typeCounts.text || 0, icon: FileText },
+                { label: "图片", type: "image" as FileType, value: typeCounts.image || 0, icon: FileImage },
+                { label: "视频", type: "video" as FileType, value: typeCounts.video || 0, icon: PlayCircle },
+                { label: "其他", type: "other" as FileType, value: typeCounts.other || 0, icon: FileArchive },
               ].map((item) => (
-                <div key={item.label} className="rounded-lg bg-slate-50 p-3">
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => setMaterialTypeFilter((current) => current === item.type ? "all" : item.type)}
+                  className={`rounded-lg p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                    materialTypeFilter === item.type ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-950 hover:bg-white"
+                  }`}
+                >
                   <IconBadge icon={item.icon} tone="slate" />
-                  <div className="mt-3 text-xs text-slate-400">{item.label}</div>
-                  <div className="mt-1 text-lg font-semibold text-slate-950">{item.value}</div>
-                </div>
+                  <div className={`mt-3 text-xs ${materialTypeFilter === item.type ? "text-white/55" : "text-slate-400"}`}>{item.label}</div>
+                  <div className={`mt-1 text-lg font-semibold ${materialTypeFilter === item.type ? "text-white" : "text-slate-950"}`}>{item.value}</div>
+                </button>
               ))}
             </div>
           </Surface>
@@ -244,7 +318,15 @@ export default function CourseDetail() {
                   title="暂无讨论"
                   description="把课程问题发到讨论区，方便之后复盘。"
                   icon={MessageCircle}
-                  action={<PrimaryButton onClick={() => navigate(`/forum/new?course_id=${courseId}`)}>发布帖子</PrimaryButton>}
+                  action={
+                    <PrimaryButton
+                      onMouseEnter={() => preloadPage("postEditor")}
+                      onFocus={() => preloadPage("postEditor")}
+                      onClick={() => navigate(`/forum/new?course_id=${courseId}`)}
+                    >
+                      发布帖子
+                    </PrimaryButton>
+                  }
                 />
               </div>
             ) : (
@@ -254,8 +336,14 @@ export default function CourseDetail() {
                     <Link
                       to={`/forum/${post.id}`}
                       className="block px-5 py-3 transition hover:bg-slate-50"
-                      onMouseEnter={() => prefetchPost(post.id)}
-                      onFocus={() => prefetchPost(post.id)}
+                      onMouseEnter={() => {
+                        preloadPage("postDetail");
+                        prefetchPost(post.id);
+                      }}
+                      onFocus={() => {
+                        preloadPage("postDetail");
+                        prefetchPost(post.id);
+                      }}
                     >
                       <div className="line-clamp-2 text-sm font-medium text-slate-900">{post.title}</div>
                       <div className="mt-1 text-xs text-slate-400">喜欢 {post.like_count} · 评论 {post.comment_count}</div>
@@ -429,7 +517,7 @@ function MaterialRow({
   );
 }
 
-function iconForType(type: ReturnType<typeof getFileType>) {
+function iconForType(type: FileType) {
   if (type === "image") return FileImage;
   if (type === "video") return PlayCircle;
   if (type === "audio") return FileAudio;
@@ -437,7 +525,7 @@ function iconForType(type: ReturnType<typeof getFileType>) {
   return FileArchive;
 }
 
-function fileTypeLabel(type: ReturnType<typeof getFileType>) {
+function fileTypeLabel(type: FileType) {
   const labels = {
     image: "图片",
     pdf: "PDF",
@@ -447,4 +535,30 @@ function fileTypeLabel(type: ReturnType<typeof getFileType>) {
     other: "其他",
   };
   return labels[type];
+}
+
+function MaterialFilterChip({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileHover={{ y: -1 }}
+      whileTap={{ scale: 0.97 }}
+      className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+        active
+          ? "bg-slate-950 text-white shadow-sm"
+          : "border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-950"
+      }`}
+    >
+      {children}
+    </motion.button>
+  );
 }

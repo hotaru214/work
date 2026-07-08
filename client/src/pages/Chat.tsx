@@ -15,8 +15,9 @@ import {
   UsersRound,
 } from "lucide-react";
 import { api } from "../api/client";
-import { useSessions } from "../hooks/api";
+import { usePrefetchPost, useSessions } from "../hooks/api";
 import { EmptyState, IconBadge, PrimaryButton, SecondaryButton, Surface } from "../components/PageScaffold";
+import { preloadPage } from "../pageLoaders";
 
 const PROMPTS = [
   "帮我把这门课的重点整理成复习提纲",
@@ -35,6 +36,7 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState<any[]>([]);
+  const prefetchPost = usePrefetchPost();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   async function loadMessages(id: number) {
@@ -157,7 +159,12 @@ export default function Chat() {
               </div>
             </div>
             {sid && (
-              <SecondaryButton onClick={() => navigate(`/forum/new?session_id=${sid}`)} className="group">
+              <SecondaryButton
+                onMouseEnter={() => preloadPage("postEditor")}
+                onFocus={() => preloadPage("postEditor")}
+                onClick={() => navigate(`/forum/new?session_id=${sid}`)}
+                className="group"
+              >
                 <PenLine size={16} />
                 发布到讨论区
                 <ArrowUpRight size={14} className="transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
@@ -193,7 +200,7 @@ export default function Chat() {
                 {busy && <TypingBubble />}
                 {relatedPosts.length > 0 && (
                   <div className="2xl:hidden">
-                    <RelatedPostsPanel relatedPosts={relatedPosts} compact />
+                    <RelatedPostsPanel relatedPosts={relatedPosts} compact onPrefetchPost={prefetchPost} />
                   </div>
                 )}
               </div>
@@ -252,7 +259,7 @@ export default function Chat() {
         </section>
 
         <aside className="hidden min-h-0 overflow-auto border-l border-slate-200 bg-white/90 p-4 backdrop-blur 2xl:block">
-          <RelatedPostsPanel relatedPosts={relatedPosts} />
+          <RelatedPostsPanel relatedPosts={relatedPosts} onPrefetchPost={prefetchPost} />
         </aside>
       </main>
     </div>
@@ -398,7 +405,15 @@ function MessageLoading() {
   );
 }
 
-function RelatedPostsPanel({ relatedPosts, compact }: { relatedPosts: any[]; compact?: boolean }) {
+function RelatedPostsPanel({
+  relatedPosts,
+  compact,
+  onPrefetchPost,
+}: {
+  relatedPosts: any[];
+  compact?: boolean;
+  onPrefetchPost: (id: number) => void;
+}) {
   return (
     <Surface className={compact ? "mt-5 p-4" : "p-4"}>
       <div className="mb-3 flex items-center gap-3">
@@ -419,7 +434,18 @@ function RelatedPostsPanel({ relatedPosts, compact }: { relatedPosts: any[]; com
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.22, delay: Math.min(index * 0.04, 0.2) }}
             >
-              <Link to={`/forum/${post.id}`} className="group block rounded-xl border border-slate-100 bg-white px-3 py-3 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm">
+              <Link
+                to={`/forum/${post.id}`}
+                onMouseEnter={() => {
+                  preloadPage("postDetail");
+                  onPrefetchPost(post.id);
+                }}
+                onFocus={() => {
+                  preloadPage("postDetail");
+                  onPrefetchPost(post.id);
+                }}
+                className="group block rounded-xl border border-slate-100 bg-white px-3 py-3 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="line-clamp-2 text-sm font-medium leading-6 text-slate-900">{post.title}</div>
                   <ArrowUpRight size={14} className="mt-1 shrink-0 text-slate-300 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-slate-700" />

@@ -3,11 +3,12 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Eye, Heart, MessageCircle, Trash2, X } from "lucide-react";
-import { api } from "../../api/client";
+import { api, resolveAssetUrl } from "../../api/client";
 import { DetailSkeleton } from "../../components/skeleton/Skeletons";
 import { useMutationToast } from "../../components/ui/toast";
 import { useComments, usePost, usePrefetchPost, useRelatedPosts } from "../../hooks/api";
-import { EmptyState, IconBadge, PrimaryButton, SecondaryButton, Surface, TextAreaField } from "../../components/PageScaffold";
+import { EmptyState, IconBadge, PageShell, PrimaryButton, SecondaryButton, Surface, TextAreaField } from "../../components/PageScaffold";
+import { preloadPage } from "../../pageLoaders";
 
 function getCurrentUserId() {
   try {
@@ -17,6 +18,10 @@ function getCurrentUserId() {
   } catch {
     return null;
   }
+}
+
+function getInitial(name?: string) {
+  return (name || "学").trim().slice(0, 1).toUpperCase();
 }
 
 export default function PostDetail() {
@@ -70,15 +75,28 @@ export default function PostDetail() {
 
   if (isLoading || !post) return <DetailSkeleton />;
   const currentUserId = getCurrentUserId();
+  const author = post.author_nickname || post.author_name || "学习者";
+  const username = post.author_username || post.username || "unknown";
+  const avatarUrl = resolveAssetUrl(post.author_avatar_url || post.avatar_url);
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
-      <Link to="/forum" className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:-translate-x-0.5 hover:text-slate-950">
-        <ArrowLeft size={16} />
-        返回讨论区
-      </Link>
-
-      <motion.article initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}>
+    <PageShell
+      title="帖子详情"
+      description="查看讨论内容、相关帖子和评论。"
+      actions={
+        <Link
+          to="/forum"
+          onMouseEnter={() => preloadPage("forumList")}
+          onFocus={() => preloadPage("forumList")}
+          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm transition hover:-translate-x-0.5 hover:border-slate-300 hover:text-slate-950"
+        >
+          <ArrowLeft size={16} />
+          返回讨论区
+        </Link>
+      }
+    >
+      <div className="mx-auto w-full max-w-4xl">
+        <motion.article initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}>
         <Surface className="overflow-hidden p-0">
           <div className="border-b border-slate-100 p-6">
             <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -90,10 +108,21 @@ export default function PostDetail() {
               ))}
             </div>
             <h1 className="text-2xl font-semibold leading-tight tracking-tight text-slate-950">{post.title}</h1>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
-              <span>{post.author_name}</span>
-              <span>{new Date(post.created_at).toLocaleString("zh-CN")}</span>
-              <span className="inline-flex items-center gap-1"><Eye size={15} />{post.view_count}</span>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-950 text-sm font-semibold text-white shadow-sm">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="" className="size-full object-cover" />
+                  ) : (
+                    getInitial(author)
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-900">{author}</div>
+                  <div className="truncate text-xs text-slate-500">@{username} · {new Date(post.created_at).toLocaleString("zh-CN")}</div>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500"><Eye size={14} />{post.view_count}</span>
             </div>
           </div>
 
@@ -117,7 +146,12 @@ export default function PostDetail() {
 
       {post.session_id && (
         <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          该帖子来自 <Link to={`/chat/${post.session_id}`} className="font-medium hover:underline">AI 对话 #{post.session_id}</Link>
+          该帖子来自 <Link
+            to={`/chat/${post.session_id}`}
+            onMouseEnter={() => preloadPage("chat")}
+            onFocus={() => preloadPage("chat")}
+            className="font-medium hover:underline"
+          >AI 对话 #{post.session_id}</Link>
         </div>
       )}
 
@@ -130,8 +164,14 @@ export default function PostDetail() {
                 <Link
                   to={`/forum/${r.id}`}
                   className="group flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white px-3 py-3 text-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
-                  onMouseEnter={() => prefetchPost(r.id)}
-                  onFocus={() => prefetchPost(r.id)}
+                  onMouseEnter={() => {
+                    preloadPage("postDetail");
+                    prefetchPost(r.id);
+                  }}
+                  onFocus={() => {
+                    preloadPage("postDetail");
+                    prefetchPost(r.id);
+                  }}
                 >
                   <span className="line-clamp-1 font-medium text-slate-900">{r.title}</span>
                   <span className="shrink-0 text-slate-500">赞 {r.like_count} · 评 {r.comment_count}</span>
@@ -217,6 +257,7 @@ export default function PostDetail() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+      </div>
+    </PageShell>
   );
 }

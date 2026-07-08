@@ -59,6 +59,15 @@ export function useTasks() {
   });
 }
 
+/** 学习计划 */
+export function usePlans() {
+  return useQuery({
+    queryKey: ["plans"],
+    queryFn: () => api.listPlans(),
+    staleTime: 60 * 1000,
+  });
+}
+
 /** 标签 */
 export function useTags(search?: string) {
   return useQuery({
@@ -222,6 +231,30 @@ export function useDeleteTask() {
   return useMutation({
     mutationFn: (id: number) => api.deleteTask(id),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useCreatePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.createPlan(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plans"] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useDeletePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deletePlan(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plans"] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },

@@ -62,10 +62,18 @@ export default function Profile() {
   const [triliumConnecting, setTriliumConnecting] = useState(false);
   const [triliumError, setTriliumError] = useState("");
   const [deletingTask, setDeletingTask] = useState<any | null>(null);
+  const [taskFilter, setTaskFilter] = useState<"all" | "active" | "done">("all");
   const hasProfileChanges = !!avatarFile || nickname !== (me?.nickname || "学习者");
   const courseCount = courses?.length ?? 0;
   const taskItems = tasks ?? [];
   const completedTasks = taskItems.filter((item: any) => item.done).length;
+  const activeTasks = taskItems.length - completedTasks;
+  const filteredTasks = taskItems.filter((item: any) => {
+    if (taskFilter === "active") return !item.done;
+    if (taskFilter === "done") return item.done;
+    return true;
+  });
+  const taskCompletionRate = taskItems.length ? Math.round((completedTasks / taskItems.length) * 100) : 0;
 
   useEffect(() => {
     if (me) setNickname(me.nickname || "学习者");
@@ -209,7 +217,7 @@ export default function Profile() {
     <PageShell title="个人中心" description="管理头像、昵称、外部知识库连接和待办任务。">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <MetricCard label="课程数" value={courseCount} hint="当前学习课程" icon={Cloud} tone="blue" />
-        <MetricCard label="任务数" value={taskItems.length} hint={`${completedTasks} 个已完成`} icon={CheckCircle2} tone="emerald" progress={taskItems.length ? Math.round((completedTasks / taskItems.length) * 100) : 0} />
+        <MetricCard label="任务数" value={taskItems.length} hint={`${completedTasks} 个已完成`} icon={CheckCircle2} tone="emerald" progress={taskCompletionRate} />
         <MetricCard label="外部连接" value={(yuqueUser ? 1 : 0) + (triliumConnected ? 1 : 0)} hint="语雀 / Trilium" icon={Link2} tone="violet" />
       </div>
 
@@ -386,38 +394,85 @@ export default function Profile() {
                 <EmptyState title="暂无任务" description="创建学习计划后，这里会展示待办任务。" icon={CheckCircle2} />
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
-                <AnimatePresence initial={false}>
-                {taskItems.map((task: any, index: number) => (
-                  <motion.div
-                    key={task.id}
-                    layout
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -12 }}
-                    transition={{ duration: 0.22, delay: Math.min(index * 0.035, 0.18) }}
-                    whileHover={{ x: 3 }}
-                    className="flex items-center gap-3 px-5 py-3 transition hover:bg-slate-50"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={task.done}
-                      onChange={(event) => toggle(task.id, event.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 accent-slate-950"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className={`truncate text-sm font-medium ${task.done ? "text-slate-400 line-through" : "text-slate-900"}`}>{task.title}</div>
-                      {task.due_date && <div className="mt-0.5 text-xs text-slate-400">{new Date(task.due_date).toLocaleDateString("zh-CN")}</div>}
+              <div>
+                <div className="space-y-4 border-b border-slate-100 px-5 py-4">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span>完成进度</span>
+                      <span>{completedTasks}/{taskItems.length}</span>
                     </div>
-                    <SecondaryButton
-                      className="h-9 px-3 text-rose-600 hover:border-rose-200 hover:bg-rose-50"
-                      onClick={() => setDeletingTask(task)}
-                    >
-                      <Trash2 size={15} />
-                    </SecondaryButton>
-                  </motion.div>
-                ))}
-                </AnimatePresence>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <motion.div
+                        className="h-full rounded-full bg-slate-950"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${taskCompletionRate}%` }}
+                        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: "all", label: `全部 ${taskItems.length}` },
+                      { key: "active", label: `未完成 ${activeTasks}` },
+                      { key: "done", label: `已完成 ${completedTasks}` },
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setTaskFilter(item.key as "all" | "active" | "done")}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                          taskFilter === item.key
+                            ? "bg-slate-950 text-white shadow-sm"
+                            : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {filteredTasks.length === 0 ? (
+                  <div className="p-5">
+                    <EmptyState title="没有匹配任务" description="切换筛选条件查看其它任务。" icon={CheckCircle2} />
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    <AnimatePresence initial={false}>
+                      {filteredTasks.map((task: any, index: number) => (
+                        <motion.div
+                          key={task.id}
+                          layout
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -12 }}
+                          transition={{ duration: 0.22, delay: Math.min(index * 0.035, 0.18) }}
+                          whileHover={{ x: 3 }}
+                          className="group flex items-center gap-3 px-5 py-3 transition hover:bg-slate-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={task.done}
+                            onChange={(event) => toggle(task.id, event.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 accent-slate-950"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className={`truncate text-sm font-medium ${task.done ? "text-slate-400 line-through" : "text-slate-900"}`}>{task.title}</div>
+                            {task.due_date && <div className="mt-0.5 text-xs text-slate-400">{new Date(task.due_date).toLocaleDateString("zh-CN")}</div>}
+                          </div>
+                          <span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:inline-flex ${task.done ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
+                            {task.done ? "已完成" : "进行中"}
+                          </span>
+                          <SecondaryButton
+                            className="h-9 px-3 text-rose-600 opacity-0 transition hover:border-rose-200 hover:bg-rose-50 group-hover:opacity-100"
+                            onClick={() => setDeletingTask(task)}
+                          >
+                            <Trash2 size={15} />
+                          </SecondaryButton>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                )}
               </div>
             )}
           </Surface>

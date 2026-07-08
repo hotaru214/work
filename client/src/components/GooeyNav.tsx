@@ -21,6 +21,7 @@ export interface GooeyNavProps {
   className?: string;
   labelClassName?: string;
   onItemClick?: (item: GooeyNavItem, index: number, event: React.MouseEvent<HTMLAnchorElement>) => void;
+  onItemPrefetch?: (item: GooeyNavItem, index: number) => void;
 }
 
 const GooeyNav: React.FC<GooeyNavProps> = ({
@@ -36,7 +37,8 @@ const GooeyNav: React.FC<GooeyNavProps> = ({
   orientation = 'horizontal',
   className = '',
   labelClassName = '',
-  onItemClick
+  onItemClick,
+  onItemPrefetch
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLUListElement>(null);
@@ -281,7 +283,14 @@ const GooeyNav: React.FC<GooeyNavProps> = ({
         <ul ref={navRef}>
           {items.map((item, index) => (
             <li key={index} className={activeIndex === index ? 'active' : ''}>
-              <a href={item.href} title={item.label} onClick={e => handleClick(e, item, index)} onKeyDown={e => handleKeyDown(e, index)}>
+              <a
+                href={item.href}
+                title={item.label}
+                onClick={e => handleClick(e, item, index)}
+                onKeyDown={e => handleKeyDown(e, index)}
+                onMouseEnter={() => onItemPrefetch?.(item, index)}
+                onFocus={() => onItemPrefetch?.(item, index)}
+              >
                 {item.icon && <span className="gooey-nav-icon">{item.icon}</span>}
                 <span className={`gooey-nav-label ${labelClassName}`}>{item.label}</span>
               </a>

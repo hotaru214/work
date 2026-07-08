@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from "react";
+import { Component, useEffect, type ReactNode } from "react";
 import { useRouteError } from "react-router-dom";
 import { reportError } from "../utils/error-reporting";
 
@@ -52,7 +52,7 @@ export function DefaultFallback({
 }) {
   return (
     <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-3 p-8 text-center">
-      <div className="text-3xl">😵</div>
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-50 text-2xl font-semibold text-rose-500">!</div>
       <div className="text-lg font-semibold">{label ? `${label}出错` : "页面出错了"}</div>
       <div className="max-w-md text-sm text-slate-500">
         {error?.message || "未知错误，请稍后重试"}
@@ -84,7 +84,11 @@ export function DefaultFallback({
 /** 路由级 ErrorBoundary：给 react-router-dom 的 errorElement 用 */
 export function RouteErrorBoundary() {
   const err = useRouteError() as Error | undefined;
+  const error = err ?? new Error("未知错误");
+  useEffect(() => {
+    reportError(error, "RouteErrorBoundary");
+  }, [error]);
   return (
-    <DefaultFallback error={err ?? new Error("未知错误")} reset={() => window.location.reload()} label="路由" />
+    <DefaultFallback error={error} reset={() => window.location.reload()} label="路由" />
   );
 }
