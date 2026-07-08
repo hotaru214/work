@@ -17,6 +17,7 @@ import {
 import { api } from "../api/client";
 import { useSessions } from "../hooks/api";
 import { EmptyState, IconBadge, PrimaryButton, SecondaryButton, Surface } from "../components/PageScaffold";
+import MarkdownRenderer from "../components/MarkdownRenderer";
 
 const PROMPTS = [
   "帮我把这门课的重点整理成复习提纲",
@@ -352,7 +353,7 @@ function MessageBubble({ message }: { message: any }) {
       </span>
       <div className={`max-w-3xl rounded-2xl px-4 py-3 shadow-sm ${isUser ? "rounded-tr-md bg-slate-950 text-white" : "rounded-tl-md border border-slate-200 bg-white text-slate-900"}`}>
         <div className={`mb-1 text-xs font-medium ${isUser ? "text-white/60" : "text-slate-400"}`}>{isUser ? "我" : "Agent"}</div>
-        <div className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</div>
+        <MarkdownRenderer content={message.content} variant={isUser ? "user" : "agent"} />
       </div>
     </motion.div>
   );

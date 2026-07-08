@@ -59,7 +59,9 @@ cd server
 python -m venv .venv
 .venv/Scripts/activate
 pip install -r requirements.txt
+
 copy .env.example .env
+
 python -m app.seed
 uvicorn main:app --reload --port 8000
 ```

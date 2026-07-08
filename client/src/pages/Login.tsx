@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { animate, stagger, splitText } from "animejs";
 import { cubicBezier } from "animejs/easings";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import BorderGlow from "../components/BorderGlow";
 import GlareHover from "../components/GlareHover";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
@@ -61,6 +62,7 @@ export default function Login() {
   const switchDirectionRef = useRef(1);
   const [isSwitching, setIsSwitching] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!cardRef.current || !headlineRef.current || !headlineTextRef.current) {
@@ -175,6 +177,8 @@ export default function Login() {
       }
       const r = await api.login(username, password);
       setToken(r.access_token);
+      // 清除所有缓存查询，确保新用户数据被重新获取
+      queryClient.clear();
       navigate("/courses", { replace: true });
     } catch (e: any) {
       setError(e.message || (mode === "register" ? "注册失败" : "登录失败"));

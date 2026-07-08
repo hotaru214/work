@@ -38,3 +38,94 @@ html, body, #root {
   max-width: calc(var(--sidebar-open, 0) * 220px);
   opacity: var(--sidebar-open, 0);
 }
+
+/* ── Markdown content (亮色背景 / Agent 消息) ── */
+.md-content h1 { @apply text-xl font-bold mb-2 mt-4 first:mt-0; }
+.md-content h2 { @apply text-lg font-semibold mb-2 mt-3 first:mt-0; }
+.md-content h3 { @apply text-base font-semibold mb-1.5 mt-3 first:mt-0; }
+.md-content h4,
+.md-content h5,
+.md-content h6 { @apply text-sm font-semibold mb-1 mt-2 first:mt-0; }
+.md-content p { @apply text-sm leading-6 mb-2 last:mb-0; }
+.md-content ul { @apply list-disc pl-5 mb-2 text-sm leading-6; }
+.md-content ol { @apply list-decimal pl-5 mb-2 text-sm leading-6; }
+.md-content li { @apply mb-0.5; }
+.md-content li > ul,
+.md-content li > ol { @apply mb-0 mt-0.5; }
+.md-content blockquote {
+  @apply border-l-4 border-slate-300 pl-4 italic text-slate-600 mb-2 text-sm leading-6;
+}
+.md-content code {
+  @apply rounded-md bg-slate-100 px-1.5 py-0.5 text-[13px] font-normal text-pink-600;
+}
+.md-content pre {
+  @apply mb-3 overflow-x-auto rounded-xl bg-slate-50 p-4 text-[13px] leading-relaxed shadow-sm;
+}
+.md-content pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
+.md-content table { @apply min-w-full border-collapse mb-2 text-sm; }
+.md-content th {
+  @apply border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500;
+}
+.md-content td { @apply border border-slate-200 px-3 py-2; }
+.md-content a { @apply text-blue-600 underline decoration-blue-300 underline-offset-2 transition hover:text-blue-800; }
+.md-content hr { @apply my-3 border-slate-200; }
+.md-content img { @apply max-w-full rounded-lg; }
+.md-content input[type="checkbox"] { @apply mr-1.5 accent-slate-950; }
+.md-content .katex-display { @apply my-2 overflow-x-auto; }
+.md-content .katex { @apply text-sm; }
+
+/* ── Markdown content (暗色背景 / User 消息) ── */
+.md-content-dark h1,
+.md-content-dark h2,
+.md-content-dark h3,
+.md-content-dark h4,
+.md-content-dark h5,
+.md-content-dark h6 { @apply text-white; }
+.md-content-dark h1 { @apply text-xl font-bold mb-2 mt-4 first:mt-0; }
+.md-content-dark h2 { @apply text-lg font-semibold mb-2 mt-3 first:mt-0; }
+.md-content-dark h3 { @apply text-base font-semibold mb-1.5 mt-3 first:mt-0; }
+.md-content-dark h4,
+.md-content-dark h5,
+.md-content-dark h6 { @apply text-sm font-semibold mb-1 mt-2 first:mt-0; }
+.md-content-dark p { @apply text-sm leading-6 mb-2 last:mb-0 text-white/90; }
+.md-content-dark ul { @apply list-disc pl-5 mb-2 text-sm leading-6 text-white/90; }
+.md-content-dark ol { @apply list-decimal pl-5 mb-2 text-sm leading-6 text-white/90; }
+.md-content-dark li { @apply mb-0.5; }
+.md-content-dark li > ul,
+.md-content-dark li > ol { @apply mb-0 mt-0.5; }
+.md-content-dark blockquote {
+  @apply border-l-4 border-white/25 pl-4 italic text-white/60 mb-2 text-sm leading-6;
+}
+.md-content-dark code {
+  @apply rounded-md bg-white/10 px-1.5 py-0.5 text-[13px] font-normal text-pink-300;
+}
+.md-content-dark pre {
+  @apply mb-3 overflow-x-auto rounded-xl bg-white/5 p-4 text-[13px] leading-relaxed;
+}
+.md-content-dark pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
+.md-content-dark table { @apply min-w-full border-collapse mb-2 text-sm text-white/80; }
+.md-content-dark th {
+  @apply border border-white/10 bg-white/10 px-3 py-2 text-left text-xs font-semibold uppercase text-white/50;
+}
+.md-content-dark td { @apply border border-white/10 px-3 py-2; }
+.md-content-dark a { @apply text-blue-300 underline decoration-blue-400/40 underline-offset-2 transition hover:text-blue-200; }
+.md-content-dark hr { @apply my-3 border-white/10; }
+.md-content-dark img { @apply max-w-full rounded-lg; }
+.md-content-dark input[type="checkbox"] { @apply mr-1.5 accent-white; }
+.md-content-dark .katex-display { @apply my-2 overflow-x-auto; }
+.md-content-dark .katex { @apply text-sm; }
+.md-content-dark .katex .base,
+.md-content-dark .katex .strut,
+.md-content-dark .katex .mord,
+.md-content-dark .katex .mbin,
+.md-content-dark .katex .mrel,
+.md-content-dark .katex .mopen,
+.md-content-dark .katex .mclose,
+.md-content-dark .katex .mpunct,
+.md-content-dark .katex .minner { color: rgb(226 232 240); }
+.md-content-dark .katex .mord-math { color: rgb(226 232 240); }
+

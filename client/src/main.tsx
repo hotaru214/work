@@ -8,6 +8,8 @@ import { ToastProvider } from "./components/ui/toast";
 import { installGlobalErrorReporting } from "./utils/error-reporting";
 // @ts-ignore: side-effect import for CSS (no type declarations)
 import "./index.css";
+import "katex/dist/katex.min.css";
+import "highlight.js/styles/github.css";
 
 installGlobalErrorReporting();
 

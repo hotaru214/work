@@ -11,6 +11,7 @@
 } from "@tabler/icons-react";
 import { useEffect, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { resolveAssetUrl, setToken } from "../api/client";
 import { useMe } from "../hooks/api";
 import GooeyNav from "./GooeyNav";
@@ -30,6 +31,7 @@ const navs = [
 
 export default function Layout() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -39,6 +41,7 @@ export default function Layout() {
 
   function logout() {
     setToken(null);
+    queryClient.clear();
     navigate("/login", { replace: true });
   }
 
