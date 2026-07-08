@@ -10,6 +10,7 @@ import { useMutationToast } from "../../components/ui/toast";
 import { useAutosaveDraft } from "../../hooks/useAutosaveDraft";
 import { useKbNote, useKbTree, usePrefetchKbNote, useTags } from "../../hooks/api";
 import { useQueryClient } from "@tanstack/react-query";
+import MarkdownRenderer from "../../components/MarkdownRenderer";
 import {
   AlignCenter,
   AlignLeft,
@@ -17,6 +18,8 @@ import {
   BookOpen,
   Braces,
   Code2,
+  Columns2,
+  Eye,
   FileText,
   FolderPlus,
   Highlighter,
@@ -28,6 +31,7 @@ import {
   Network,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
   Plus,
   Quote,
   Redo2,
@@ -82,6 +86,7 @@ export default function KBDetail() {
   const [showBgColor, setShowBgColor] = useState(false);
   const [showHeading, setShowHeading] = useState(false);
   const [editorMode, setEditorMode] = useState<"rich" | "markdown">("rich");
+  const [markdownViewMode, setMarkdownViewMode] = useState<"edit" | "split" | "preview">("split");
   const [newTitle, setNewTitle] = useState("");
   const [mdText, setMdText] = useState("");
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -278,53 +283,72 @@ export default function KBDetail() {
     if (editorRef.current) editorRef.current.focus();
     scheduleSave();
   }
-  function handleFontSize(size: string) {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && editorRef.current) {
-      const range = sel.getRangeAt(0);
-      if (range.collapsed) {
-        // Select current word/character
-        (range as any).expand("word");
-      }
-      try {
-        const span = document.createElement("span");
-        span.style.fontSize = size + "px";
-        // Use extractContents + appendChild for robustness
-        const fragment = range.extractContents();
-        span.appendChild(fragment);
-        range.insertNode(span);
-        // Move cursor after the span
-        const newRange = document.createRange();
-        newRange.setStartAfter(span);
-        newRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-      } catch {}
+  /**
+   * 手动扩展选区到"词"边界，兼容中英文混排。
+   * Selection.modify("word") 在中文字符上只选中一个字，这里用非空格连续字符作为词。
+   */
+  function expandCollapsedRange(range: Range): boolean {
+    if (!range.collapsed) return true; // 已有选区，不处理
+    const node = range.startContainer;
+    if (node.nodeType !== Node.TEXT_NODE) return false;
+    const text = node.textContent || "";
+    const offset = range.startOffset;
+    if (offset >= text.length && offset > 0) {
+      // 光标在文本末尾，向前选一个字
+      range.setStart(node, offset - 1);
+      range.setEnd(node, offset);
+      return true;
     }
+    if (offset >= text.length) return false;
+    let start = offset;
+    let end = offset;
+    // 向前扩展到非空白字符边界
+    while (start > 0 && !/\s/.test(text[start - 1])) start--;
+    // 向后扩展到非空白字符边界
+    while (end < text.length && !/\s/.test(text[end])) end++;
+    if (start === end) return false;
+    range.setStart(node, start);
+    range.setEnd(node, end);
+    return true;
+  }
+
+  /** 把 inline style 应用到当前选区 */
+  function applyInlineStyle(style: Record<string, string>): boolean {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !editorRef.current) return false;
+    const range = sel.getRangeAt(0);
+    expandCollapsedRange(range);
+    if (range.collapsed) return false;
+    try {
+      const span = document.createElement("span");
+      Object.assign(span.style, style);
+      const fragment = range.extractContents();
+      span.appendChild(fragment);
+      range.insertNode(span);
+      // 光标移到 span 后面
+      const after = document.createRange();
+      after.setStartAfter(span);
+      after.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(after);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function handleFontSize(size: string) {
+    restoreEditorSelection();
+    applyInlineStyle({ fontSize: size + "px" });
     setShowFontSize(false);
     if (editorRef.current) editorRef.current.focus();
     scheduleSave();
   }
 
   function handleColor(color: string) {
-    const sel = window.getSelection()!;
-    if (sel.rangeCount > 0 && editorRef.current) {
-      const range = sel.getRangeAt(0);
-      if (range.collapsed) {
-        (range as any).expand("word");
-      }
-      try {
-        const span = document.createElement("span");
-        span.style.color = color;
-        const fragment = range.extractContents();
-        span.appendChild(fragment);
-        range.insertNode(span);
-        const newRange = document.createRange();
-        newRange.setStartAfter(span);
-        newRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-      } catch {}
+    restoreEditorSelection();
+    if (!applyInlineStyle({ color })) {
+      document.execCommand("foreColor", false, color);
     }
     setShowColor(false);
     if (editorRef.current) editorRef.current.focus();
@@ -332,24 +356,9 @@ export default function KBDetail() {
   }
 
   function handleBgColor(color: string) {
-    const sel = window.getSelection()!;
-    if (sel.rangeCount > 0 && editorRef.current) {
-      const range = sel.getRangeAt(0);
-      if (range.collapsed) {
-        (range as any).expand("word");
-      }
-      try {
-        const span = document.createElement("span");
-        span.style.backgroundColor = color;
-        const fragment = range.extractContents();
-        span.appendChild(fragment);
-        range.insertNode(span);
-        const newRange = document.createRange();
-        newRange.setStartAfter(span);
-        newRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-      } catch {}
+    restoreEditorSelection();
+    if (!applyInlineStyle({ backgroundColor: color })) {
+      document.execCommand("backColor", false, color);
     }
     setShowBgColor(false);
     if (editorRef.current) editorRef.current.focus();
@@ -564,16 +573,37 @@ export default function KBDetail() {
         ) : (
           <>
             {/* Toolbar */}
-            <div ref={dropdownRef} className="flex h-12 shrink-0 select-none items-center gap-1 overflow-x-auto whitespace-nowrap border-b border-slate-200 bg-white px-3 py-2">
-              <button onClick={() => execCmd("undo")} className="tb-btn" title="撤销"><Undo2 size={14} /></button>
-              <button onClick={() => execCmd("redo")} className="tb-btn" title="重做"><Redo2 size={14} /></button>
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button onClick={() => execCmd("bold")} className="tb-btn font-bold" title="粗体">B</button>
-              <button onClick={() => execCmd("italic")} className="tb-btn italic" title="斜体">I</button>
-              <button onClick={() => execCmd("underline")} className="tb-btn" title="下划线"><u>U</u></button>
-              <button onClick={() => execCmd("strikeThrough")} className="tb-btn" title="删除线"><s>S</s></button>
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <div className="relative">
+            <div ref={dropdownRef} className="flex h-12 shrink-0 select-none items-center gap-1 border-b border-slate-200 bg-white px-3 py-2">
+              {/* 基础格式按钮（可横向滚动） */}
+              <div className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap">
+                <button onClick={() => execCmd("undo")} className="tb-btn" title="撤销"><Undo2 size={14} /></button>
+                <button onClick={() => execCmd("redo")} className="tb-btn" title="重做"><Redo2 size={14} /></button>
+                <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
+                <button onClick={() => execCmd("bold")} className="tb-btn font-bold" title="粗体">B</button>
+                <button onClick={() => execCmd("italic")} className="tb-btn italic" title="斜体">I</button>
+                <button onClick={() => execCmd("underline")} className="tb-btn" title="下划线"><u>U</u></button>
+                <button onClick={() => execCmd("strikeThrough")} className="tb-btn" title="删除线"><s>S</s></button>
+                <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
+                <button onClick={() => execCmd("justifyLeft")} className="tb-btn" title="左对齐"><AlignLeft size={14} /></button>
+                <button onClick={() => execCmd("justifyCenter")} className="tb-btn" title="居中"><AlignCenter size={14} /></button>
+                <button onClick={() => execCmd("justifyRight")} className="tb-btn" title="右对齐"><AlignRight size={14} /></button>
+                <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
+                <button onClick={() => execCmd("insertUnorderedList")} className="tb-btn" title="无序列表"><List size={14} /></button>
+                <button onClick={() => execCmd("insertOrderedList")} className="tb-btn" title="有序列表"><ListOrdered size={14} /></button>
+                <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
+                <button onClick={() => execCmd("formatBlock","<blockquote>")} className="tb-btn" title="引用"><Quote size={14} /></button>
+                <button onClick={() => execCmd("formatBlock","<pre>")} className="tb-btn" title="代码块"><Braces size={14} /></button>
+                <button onClick={() => openInsertDialog("table")} className="tb-btn" title="插入表格"><Table2 size={14} /></button>
+                <button onClick={() => openInsertDialog("image")} className="tb-btn" title="插入图片"><ImageIcon size={14} /></button>
+                <button onClick={() => openInsertDialog("link")} className="tb-btn" title="插入链接"><Link2 size={14} /></button>
+                <button onClick={() => execCmd("insertHorizontalRule")} className="tb-btn" title="分割线"><Minus size={14} /></button>
+                <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
+                <button onClick={() => execCmd("removeFormat")} className="tb-btn" title="清除格式"><RemoveFormatting size={14} /></button>
+              </div>
+
+              {/* 下拉菜单触发器（必须在 overflow 外层，否则 absolute 面板被裁剪） */}
+              <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
+              <div className="relative shrink-0">
                 <button onClick={() => { setShowHeading(prev => !prev); setShowFontSize(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn" title="标题"><Type size={14} /></button>
                 <AnimatePresence>
                   {showHeading && (
@@ -599,9 +629,8 @@ export default function KBDetail() {
                   )}
                 </AnimatePresence>
               </div>
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <div className="relative">
-                <button onClick={() => { setShowFontSize(prev => !prev); setShowHeading(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn text-[10px]" title="字号">Aa</button>
+              <div className="relative shrink-0">
+                <button onClick={() => { saveEditorSelection(); setShowFontSize(prev => !prev); setShowHeading(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn text-[10px]" title="字号">Aa</button>
                 <AnimatePresence>
                   {showFontSize && (
                     <motion.div
@@ -619,8 +648,8 @@ export default function KBDetail() {
                   )}
                 </AnimatePresence>
               </div>
-              <div className="relative">
-                <button onClick={() => { setShowColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowBgColor(false); }} className="tb-btn" title="文字颜色">
+              <div className="relative shrink-0">
+                <button onClick={() => { saveEditorSelection(); setShowColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowBgColor(false); }} className="tb-btn" title="文字颜色">
                   <Type size={14} />
                 </button>
                 <AnimatePresence>
@@ -632,7 +661,7 @@ export default function KBDetail() {
                       exit={{ opacity: 0, y: -4, scale: 0.97 }}
                       transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <div className="grid grid-cols-8 gap-2">
+                      <div className="grid grid-cols-8 gap-6">
                         {["#000","#434343","#666","#999","#b7b7b7","#ccc","#d9d9d9","#fff","#e53e3e","#dd6b20","#d69e2e","#38a169","#319795","#3182ce","#5a67d8","#805ad5","#ffb3b3","#ffd699","#ffecb3","#b3ffcc","#b3ecff","#b3c2ff","#d4b3ff","#ffb3ec"].map(c => (
                           <button key={c} onClick={() => { handleColor(c); setShowColor(false); }} className="h-6 w-6 rounded-md border border-slate-200 transition hover:scale-110 hover:shadow-sm" style={{backgroundColor:c}} title={c}/>
                         ))}
@@ -641,8 +670,8 @@ export default function KBDetail() {
                   )}
                 </AnimatePresence>
               </div>
-              <div className="relative">
-                <button onClick={() => { setShowBgColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowColor(false); }} className="tb-btn" title="背景色">
+              <div className="relative shrink-0">
+                <button onClick={() => { saveEditorSelection(); setShowBgColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowColor(false); }} className="tb-btn" title="背景色">
                   <Highlighter size={14} />
                 </button>
                 <AnimatePresence>
@@ -654,7 +683,7 @@ export default function KBDetail() {
                       exit={{ opacity: 0, y: -4, scale: 0.97 }}
                       transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <div className="grid grid-cols-8 gap-2">
+                      <div className="grid grid-cols-8 gap-6">
                         {["#ffffcc","#d9f2d9","#d9e6f2","#e6d9f2","#f2d9d9","#f2eed9","#d9f2f2","#f2d9f2","#ffd9b3","#b3d9ff","#ffb3b3","#b3ffb3","#ffff99","#cc99ff","#99ccff","#ff99cc"].map(c => (
                           <button key={c} onClick={() => { handleBgColor(c); setShowBgColor(false); }} className="h-6 w-6 rounded-md border border-slate-200 transition hover:scale-110 hover:shadow-sm" style={{backgroundColor:c}} title={c}/>
                         ))}
@@ -663,23 +692,33 @@ export default function KBDetail() {
                   )}
                 </AnimatePresence>
               </div>
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button onClick={() => execCmd("justifyLeft")} className="tb-btn" title="左对齐"><AlignLeft size={14} /></button>
-              <button onClick={() => execCmd("justifyCenter")} className="tb-btn" title="居中"><AlignCenter size={14} /></button>
-              <button onClick={() => execCmd("justifyRight")} className="tb-btn" title="右对齐"><AlignRight size={14} /></button>
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button onClick={() => execCmd("insertUnorderedList")} className="tb-btn" title="无序列表"><List size={14} /></button>
-              <button onClick={() => execCmd("insertOrderedList")} className="tb-btn" title="有序列表"><ListOrdered size={14} /></button>
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button onClick={() => execCmd("formatBlock","<blockquote>")} className="tb-btn" title="引用"><Quote size={14} /></button>
-              <button onClick={() => execCmd("formatBlock","<pre>")} className="tb-btn" title="代码块"><Braces size={14} /></button>
-              <button onClick={() => openInsertDialog("table")} className="tb-btn" title="插入表格"><Table2 size={14} /></button>
-              <button onClick={() => openInsertDialog("image")} className="tb-btn" title="插入图片"><ImageIcon size={14} /></button>
-              <button onClick={() => openInsertDialog("link")} className="tb-btn" title="插入链接"><Link2 size={14} /></button>
-              <button onClick={() => execCmd("insertHorizontalRule")} className="tb-btn" title="分割线"><Minus size={14} /></button>
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button onClick={() => execCmd("removeFormat")} className="tb-btn" title="清除格式"><RemoveFormatting size={14} /></button>
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
+              <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
+              <button
+                type="button"
+                onClick={() => {
+                  if (editorMode === "markdown") {
+                    const html = mdToHtml(mdText);
+                    setContent(html);
+                    setEditorMode("rich");
+                    setTimeout(() => {
+                      if (editorRef.current) editorRef.current.innerHTML = html;
+                    }, 0);
+                  } else {
+                    const html = editorRef.current?.innerHTML || "";
+                    setMdText(htmlToMd(html));
+                    setEditorMode("markdown");
+                  }
+                }}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  editorMode === "markdown"
+                    ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
+                    : "border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                }`}
+                title={editorMode === "markdown" ? "切换到富文本编辑" : "切换到 Markdown 编辑"}
+              >
+                <Braces size={13} />
+                Markdown
+              </button>
             </div>
 
             {/* Title bar */}
@@ -735,16 +774,101 @@ export default function KBDetail() {
                   contentEditable suppressContentEditableWarning onInput={handleEditorInput}
                   style={{ minHeight: "100%" }} data-placeholder="开始写笔记..." />
               ) : (
-                <motion.textarea
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22 }}
-                  className="mx-auto min-h-full w-full max-w-4xl resize-none rounded-lg border border-slate-200 bg-white p-8 pb-16 font-mono text-base leading-7 shadow-sm outline-none focus:ring-0"
-                  value={mdText}
-                  onChange={(e) => { setMdText(e.target.value); scheduleSave(); }}
-                  style={{ minHeight: "100%" }}
-                  placeholder="使用 Markdown 语法编写..."
-                />
+                <>
+                  {/* Markdown 视图切换 */}
+                  <div className="mx-auto mb-3 flex w-full max-w-4xl items-center gap-1">
+                    <span className="mr-2 text-xs font-medium text-slate-400">视图</span>
+                    <button
+                      type="button"
+                      onClick={() => setMarkdownViewMode("edit")}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                        markdownViewMode === "edit"
+                          ? "bg-slate-950 text-white shadow-sm"
+                          : "border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                      }`}
+                    >
+                      <Pencil size={13} />编辑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMarkdownViewMode("split")}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                        markdownViewMode === "split"
+                          ? "bg-slate-950 text-white shadow-sm"
+                          : "border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                      }`}
+                    >
+                      <Columns2 size={13} />分屏
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMarkdownViewMode("preview")}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                        markdownViewMode === "preview"
+                          ? "bg-slate-950 text-white shadow-sm"
+                          : "border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                      }`}
+                    >
+                      <Eye size={13} />预览
+                    </button>
+                  </div>
+
+                  {markdownViewMode === "edit" ? (
+                    <motion.textarea
+                      key="md-edit"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.22 }}
+                      className="mx-auto min-h-full w-full max-w-4xl resize-none rounded-lg border border-slate-200 bg-white p-8 pb-16 font-mono text-base leading-7 shadow-sm outline-none focus:ring-0"
+                      value={mdText}
+                      onChange={(e) => { setMdText(e.target.value); scheduleSave(); }}
+                      style={{ minHeight: "100%" }}
+                      placeholder="使用 Markdown 语法编写..."
+                    />
+                  ) : markdownViewMode === "split" ? (
+                    <motion.div
+                      key="md-split"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.22 }}
+                      className="mx-auto grid min-h-full w-full max-w-[96rem] grid-cols-2 gap-4"
+                      style={{ minHeight: "100%" }}
+                    >
+                      <textarea
+                        className="min-h-full resize-none rounded-lg border border-slate-200 bg-white p-6 font-mono text-sm leading-7 shadow-sm outline-none focus:ring-0"
+                        value={mdText}
+                        onChange={(e) => { setMdText(e.target.value); scheduleSave(); }}
+                        placeholder="使用 Markdown 语法编写..."
+                      />
+                      <div className="min-h-full overflow-auto rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                        {mdText.trim() ? (
+                          <MarkdownRenderer content={mdText} variant="agent" />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-sm text-slate-300">
+                            在左侧输入 Markdown 即可预览
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="md-preview"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.22 }}
+                      className="mx-auto min-h-full w-full max-w-4xl rounded-lg border border-slate-200 bg-white p-8 shadow-sm"
+                      style={{ minHeight: "100%" }}
+                    >
+                      {mdText.trim() ? (
+                        <MarkdownRenderer content={mdText} variant="agent" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-slate-300">
+                          暂无内容，切换到「编辑」或「分屏」开始编写
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </>
               )}
               <div className="pointer-events-none absolute bottom-8 right-10 select-none rounded-full bg-white/90 px-2.5 py-1 text-[11px] text-slate-400 shadow-sm ring-1 ring-slate-100">
                 字数：{getWordCount()}
