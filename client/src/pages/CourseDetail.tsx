@@ -64,6 +64,7 @@ export default function CourseDetail() {
   const [deletingMaterial, setDeletingMaterial] = useState<any | null>(null);
   const [materialSearch, setMaterialSearch] = useState("");
   const [materialTypeFilter, setMaterialTypeFilter] = useState<FileType | "all">("all");
+  const [startingChat, setStartingChat] = useState(false);
 
   async function onUpload(e: React.FormEvent) {
     e.preventDefault();
@@ -83,8 +84,14 @@ export default function CourseDetail() {
   }
 
   async function startChat() {
-    const session = await api.createSession(courseId, course?.name || "课程对话");
-    navigate(`/chat/${session.id}`);
+    if (startingChat) return;
+    setStartingChat(true);
+    try {
+      const session = await api.createSession(courseId, course?.name || "课程对话");
+      navigate(`/chat/${session.id}`);
+    } finally {
+      setStartingChat(false);
+    }
   }
 
   async function handlePreview(material: any) {
@@ -181,9 +188,10 @@ export default function CourseDetail() {
             onMouseEnter={() => preloadPage("chat")}
             onFocus={() => preloadPage("chat")}
             onClick={startChat}
+            disabled={startingChat}
           >
             <PenLine size={16} />
-            开始课程对话
+            {startingChat ? "创建中…" : "开始课程对话"}
           </PrimaryButton>
         </>
       }

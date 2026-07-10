@@ -254,7 +254,12 @@ export const api = {
 
   // ===== Chat =====
   listSessions: () => apiFetch<any[]>("/chat/sessions"),
-  createSession: (courseId: number | null, title = "新对话") => apiFetch(`/chat/sessions?course_id=${courseId ?? ""}&title=${encodeURIComponent(title)}`, { method: "POST" }),
+  createSession: (courseId: number | null, title = "新对话") => {
+    const params = new URLSearchParams();
+    if (courseId != null) params.append("course_id", String(courseId));
+    params.append("title", title);
+    return apiFetch(`/chat/sessions?${params.toString()}`, { method: "POST" });
+  },
   listMessages: (sid: number) => apiFetch<any[]>(`/chat/sessions/${sid}/messages`),
   publishSession: (sessionId: number, title: string, tagIds: string = "") => apiFetch<any>(`/chat/sessions/${sessionId}/publish?title=${encodeURIComponent(title)}&tag_ids=${tagIds}`, { method: "POST" }),
   sessionRelatedPosts: (sessionId: number) => apiFetch<any[]>(`/chat/sessions/${sessionId}/related`),

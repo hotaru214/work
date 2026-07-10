@@ -1,6 +1,7 @@
 import mimetypes
 import os
 import shutil
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import FileResponse
@@ -56,11 +57,14 @@ def download_material(material_id: int, user: User = Depends(get_current_user), 
     if media_type is None:
         media_type = "application/octet-stream"
 
+    encoded_filename = quote(m.filename)
+
     return FileResponse(
         m.content_path,
         media_type=media_type,
-        filename=m.filename,
-        headers={"Content-Disposition": f"inline; filename={m.filename}"},
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}",
+        },
     )
 
 

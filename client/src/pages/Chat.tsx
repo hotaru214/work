@@ -36,6 +36,7 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [creatingSession, setCreatingSession] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState<any[]>([]);
   const prefetchPost = usePrefetchPost();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -69,12 +70,18 @@ export default function Chat() {
   }, [sid]);
 
   async function newSession() {
-    const session = await api.createSession(null, "新对话");
-    setSid(session.id);
-    setMessages([]);
-    setRelatedPosts([]);
-    queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
-    navigate(`/chat/${session.id}`);
+    if (creatingSession) return;
+    setCreatingSession(true);
+    try {
+      const session = await api.createSession(null, "新对话");
+      setSid(session.id);
+      setMessages([]);
+      setRelatedPosts([]);
+      queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
+      navigate(`/chat/${session.id}`);
+    } finally {
+      setCreatingSession(false);
+    }
   }
 
   async function send() {
@@ -113,14 +120,15 @@ export default function Chat() {
           <motion.button
             type="button"
             onClick={newSession}
-            whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.98 }}
-            className="group flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+            disabled={creatingSession}
+            whileHover={creatingSession ? undefined : { y: -1 }}
+            whileTap={creatingSession ? undefined : { scale: 0.98 }}
+            className="group flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/12 transition group-hover:rotate-90">
               <Plus size={15} />
             </span>
-            新对话
+            {creatingSession ? "创建中…" : "新对话"}
           </motion.button>
         </div>
 

@@ -1,22 +1,64 @@
-"""LLM \u62bd\u8c61\u5c42\u3002
+"""LLM 抽象层 — 当前接入 DeepSeek（OpenAI 兼容 API）。"""
 
-\u5f53\u524d\u4e3a mock \u5b9e\u73b0\uff0c\u540e\u7eed\u53ef\u5728\u6b64\u66ff\u6362\u4e3a OpenAI / Anthropic / \u672c\u5730\u6a21\u578b\u3002
-\u8def\u7531\u5c42\u53ea\u8c03 LLMClient\uff0c\u4e0d\u76f4\u63a5\u4f9d\u8d56\u5177\u4f53 SDK\u3002
-"""
+import httpx
 from typing import List
 
 from app.config import settings
 from app.models import ChatMessage
 from app.schemas import Snippet
 
+DEEPSEEK_CHAT_URL = f"{settings.DEEPSEEK_BASE_URL}/chat/completions"
+
+
+def _build_messages(history: List[ChatMessage], context: List[Snippet] | None):
+    system_parts = [
+        "你是课程学习助手，专门帮助用户理解课程内容、整理知识点、解答疑问。",
+        "回答使用中文，简洁清晰，适当使用 Markdown 格式。",
+    ]
+    if context:
+        refs = "\n".join(
+            f"- {s.filename}\n  ```\n  {s.text[:800]}{'...' if len(s.text) > 800 else ''}\n  ```"
+            for s in context[:5]
+        )
+        system_parts.append(f"以下是课程相关资料，请优先参考：\n{refs}")
+
+    messages = [{"role": "system", "content": "\n\n".join(system_parts)}]
+    for m in history:
+        messages.append({"role": m.role, "content": m.content})
+    return messages
+
 
 class LLMClient:
     def __init__(self, provider: str | None = None):
         self.provider = provider or settings.LLM_PROVIDER
 
+    def _call_deepseek(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048) -> str:
+        headers = {
+            "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": settings.DEEPSEEK_MODEL,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        try:
+            resp = httpx.post(DEEPSEEK_CHAT_URL, json=body, headers=headers, timeout=60.0)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+        except httpx.HTTPStatusError as e:
+            return f"[API 错误 {e.response.status_code}] 模型暂时不可用，请稍后重试。"
+        except Exception as e:
+            return f"[网络错误] 无法连接 AI 服务：{e}"
+
     def chat(self, history: List[ChatMessage], context: List[Snippet] | None = None) -> str:
         if self.provider == "mock":
             return self._mock(history, context)
+        if self.provider == "deepseek":
+            messages = _build_messages(history, context)
+            return self._call_deepseek(messages)
         raise NotImplementedError(f"provider {self.provider} not implemented")
 
     def _mock(self, history: List[ChatMessage], context: List[Snippet] | None) -> str:
@@ -24,17 +66,26 @@ class LLMClient:
         q = last_user.content if last_user else ""
         refs = ""
         if context:
-            refs = "\n\n\u53c2\u8003\u8d44\u6599\uff1a\n" + "\n".join(f"- {{s.filename}}" for s in context)
-        return f"[mock LLM] \u5df2\u6536\u5230\u95ee\u9898\uff1a\u201c{q}\u201d\u3002\u8fd9\u662f\u4e00\u4e2a\u5360\u4f4d\u56de\u590d\uff0c\u63a5\u5165\u771f\u5b9e\u5927\u6a21\u578b\u540e\u4f1a\u66ff\u6362\u4e3a\u57fa\u4e8e\u8bfe\u7a0b\u8d44\u6599\u7684\u56de\u7b54\u3002{refs}"
+            refs = "\n\n参考资料：\n" + "\n".join(f"- {s.filename}" for s in context)
+        return f"[mock LLM] 已收到问题：「{q}」。接入真实大模型后会替换为基于课程资料的回答。{refs}"
 
     def summarize(self, title: str, content: str) -> str:
-        """\u751f\u6210\u6587\u6863\u6458\u8981"""
-        if self.provider == "mock":
-            return f"[\u6458\u8981] {title}: \u8fd9\u662f\u4e00\u7bc7\u5173\u4e8e\u201c{title[:20]}\u201d\u7684\u5b66\u4e60\u7b14\u8bb0\uff0c\u5171{len(content)}\u5b57\uff0c\u5185\u5bb9\u8986\u76d6\u4e86\u8be5\u4e3b\u9898\u7684\u6838\u5fc3\u77e5\u8bc6\u70b9\u3002"
+        if self.provider == "deepseek":
+            messages = [
+                {"role": "system", "content": "你是课程学习助手，请用一段话（不超过100字）简洁概括以下文档内容。"},
+                {"role": "user", "content": f"标题：{title}\n\n内容：\n{content[:2000]}"},
+            ]
+            return self._call_deepseek(messages, temperature=0.3, max_tokens=200)
+        return f"[摘要] {title}: 这是一篇关于「{title[:20]}」的学习笔记，共{len(content)}字。"
 
     def suggest(self, title: str, content: str) -> str:
-        """\u5bf9\u6587\u6863\u63d0\u51fa\u6539\u8fdb\u5efa\u8bae"""
-        if self.provider == "mock":
-            return f"[\u5efa\u8bae] 1. \u5efa\u8bae\u589e\u52a0\u66f4\u591a\u793a\u4f8b\u4ee3\u7801\u6216\u6848\u4f8b\uff1b2. \u53ef\u8003\u8651\u6dfb\u52a0\u76ee\u5f55\u7ed3\u6784\uff1b3. \u91cd\u70b9\u6982\u5ff5\u53ef\u4ee5\u7528\u7c97\u4f53\u7a81\u51fa\u3002"
+        if self.provider == "deepseek":
+            messages = [
+                {"role": "system", "content": "你是课程学习助手，请对以下文档提出 3 条具体的改进建议，每条不超过 20 字。"},
+                {"role": "user", "content": f"标题：{title}\n\n内容：\n{content[:2000]}"},
+            ]
+            return self._call_deepseek(messages, temperature=0.5, max_tokens=300)
+        return f"[建议] 1. 建议增加更多示例；2. 可考虑添加目录结构；3. 重点概念可以用粗体突出。"
+
 
 llm = LLMClient()
