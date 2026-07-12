@@ -5,6 +5,14 @@ import { useTags, useCreateTag, useUpdateTag, useDeleteTag } from "../hooks/api"
 import { useMutationToast } from "../components/ui/toast";
 import { GooeyInput } from "../components/ui/gooey-input";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import {
   EmptyState,
   IconBadge,
   MetricCard,
@@ -189,60 +197,40 @@ export default function TagManage() {
         )}
       </Surface>
 
-      <AnimatePresence>
-      {showModal && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-          onClick={() => setShowModal(false)}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <motion.div
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-950">{editingTag ? "编辑标签" : "新建标签"}</h2>
-                <p className="mt-1 text-sm text-slate-500">选择一个清晰的名称和颜色。</p>
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="border-slate-200 bg-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-slate-950">{editingTag ? "编辑标签" : "新建标签"}</DialogTitle>
+            <DialogDescription className="text-slate-500">
+              选择一个清晰的名称和颜色。
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-4">
+            <TextField value={name} onChange={(e) => setName(e.target.value)} placeholder="标签名称" autoFocus required />
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-700">颜色</div>
+              <div className="flex flex-wrap gap-2">
+                {PRESET_COLORS.map((preset) => (
+                  <motion.button
+                    key={preset}
+                    type="button"
+                    onClick={() => setColor(preset)}
+                    whileHover={{ y: -2, scale: 1.08 }}
+                    whileTap={{ scale: 0.94 }}
+                    className={`h-8 w-8 rounded-lg border-2 transition ${color === preset ? "scale-110 border-slate-950 shadow-md" : "border-transparent"}`}
+                    style={{ backgroundColor: preset }}
+                    aria-label={preset}
+                  />
+                ))}
               </div>
-              <button onClick={() => setShowModal(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                <X size={18} />
-              </button>
             </div>
-            <form onSubmit={handleSave} className="space-y-4">
-              <TextField value={name} onChange={(e) => setName(e.target.value)} placeholder="标签名称" autoFocus required />
-              <div>
-                <div className="mb-2 text-sm font-medium text-slate-700">颜色</div>
-                <div className="flex flex-wrap gap-2">
-                  {PRESET_COLORS.map((preset) => (
-                    <motion.button
-                      key={preset}
-                      type="button"
-                      onClick={() => setColor(preset)}
-                      whileHover={{ y: -2, scale: 1.08 }}
-                      whileTap={{ scale: 0.94 }}
-                      className={`h-8 w-8 rounded-lg border-2 transition ${color === preset ? "scale-110 border-slate-950 shadow-md" : "border-transparent"}`}
-                      style={{ backgroundColor: preset }}
-                      aria-label={preset}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <SecondaryButton type="button" onClick={() => setShowModal(false)}>取消</SecondaryButton>
-                <PrimaryButton type="submit">{editingTag ? "保存" : "创建"}</PrimaryButton>
-              </div>
-            </form>
-          </motion.div>
-        </motion.div>
-      )}
-      </AnimatePresence>
+            <DialogFooter className="gap-3 pt-1 sm:space-x-0">
+              <SecondaryButton type="button" onClick={() => setShowModal(false)}>取消</SecondaryButton>
+              <PrimaryButton type="submit">{editingTag ? "保存" : "创建"}</PrimaryButton>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AnimatePresence>
       {deleteTarget && (
@@ -276,7 +264,7 @@ export default function TagManage() {
             </div>
             <div className="mt-5 flex justify-end gap-3">
               <SecondaryButton type="button" onClick={() => setDeleteTarget(null)}>取消</SecondaryButton>
-              <PrimaryButton type="button" className="bg-rose-600 hover:bg-rose-500 focus-visible:ring-rose-300" onClick={() => handleDelete(deleteTarget)}>
+              <PrimaryButton type="button" tone="danger" onClick={() => handleDelete(deleteTarget)}>
                 <Trash2 size={16} />
                 删除
               </PrimaryButton>

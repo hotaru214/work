@@ -1,11 +1,11 @@
 # 课程学习助手 Agent 平台
 
-一个面向课程学习的工作台：把课程资料、学习对话、学习计划、知识库、讨论区和个人资料集中到同一个应用里。前端侧重清爽、严肃但有质感的交互体验；后端提供 FastAPI REST 接口和本地/远程数据库支持。
+一个面向课程学习的工作台：把课程资料、学习对话、学习计划、知识库、讨论区和个人资料集中到同一个应用里。前端强调浅色玻璃质感、小面积深色强调和适度动效；后端提供 FastAPI REST 接口和本地/远程数据库支持。
 
 ## 技术栈
 
 - 前端：React 18、TypeScript、Vite、Tailwind CSS、React Router、TanStack Query
-- UI 与动效：motion、animejs、lucide-react、Tabler Icons、shadcn 风格组件
+- UI 与动效：motion、animejs、lucide-react、Tabler Icons、shadcn 风格组件、React Bits / Magic UI / Aceternity 组件
 - 后端：FastAPI、SQLAlchemy、Pydantic、python-jose
 - 数据库：本地 SQLite，团队/部署环境可切换 PostgreSQL 或 Supabase
 - 文件：上传文件保存在 `server/uploads/`，通过 `/uploads` 访问
@@ -18,6 +18,14 @@
 - 知识库目录、富文本/Markdown 编辑、标签、分享、回收站
 - 讨论区帖子、评论、点赞、标签和相关帖子
 - 语雀与 Trilium 连接入口
+
+## 前端体验
+
+- 主页面使用统一的浅色玻璃背景、卡片阴影和悬停反馈，避免大面积纯黑压住内容。
+- 课程、计划、知识库等页面使用 Carousel、Stack、Folder、Counter、ProgressRing、GooeyInput、AnimatedList、RippleButton 等组件增强交互。
+- 列表卡片支持 hover/focus 预加载详情页，减少进入详情时的等待感。
+- 讨论区使用分页、渐进模糊和动画列表；知识库树保持虚拟列表，避免节点较多时卡顿。
+- 编辑器、弹窗、删除确认、上传入口统一使用轻量动效和清晰的状态反馈。
 
 ## 快速启动
 
@@ -110,7 +118,7 @@ pytest
 - TanStack Query hooks 放在 `client/src/hooks/api.ts`。
 - 页面动态导入统一放在 `client/src/pageLoaders.ts`，需要 hover/focus 预加载时复用这些 loader。
 - 页面结构优先复用 `client/src/components/PageScaffold.tsx`。
-- 加载态、错误边界、Toast、骨架屏和本地草稿逻辑不要随意绕开。
+- 加载态、错误边界、Toast、骨架屏、查询缓存和本地草稿逻辑不要随意绕开。
 - 大列表或树形内容优先使用虚拟列表。
 - UI 文案默认使用中文。
 - 后端路由在 `server/app/routers/`，模型在 `server/app/models.py`，schema 在 `server/app/schemas.py`。

@@ -1,8 +1,19 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarClock, Clock3, Plus, Route, Search, Trash2, X } from "lucide-react";
 import { useCreatePlan, useDeletePlan, usePlans } from "../hooks/api";
 import { GooeyInput } from "../components/ui/gooey-input";
+import ProgressRing from "../components/ProgressRing";
+import SpotlightCard from "../components/SpotlightCard";
+import Stack from "../components/Stack";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
 import {
   EmptyState,
   ErrorState,
@@ -23,6 +34,7 @@ export default function Plan() {
   const [goal, setGoal] = useState("");
   const [deadline, setDeadline] = useState("");
   const [daily, setDaily] = useState(60);
+  const [createOpen, setCreateOpen] = useState(false);
   const [deletingPlan, setDeletingPlan] = useState<any | null>(null);
   const [search, setSearch] = useState("");
   const [deadlineFilter, setDeadlineFilter] = useState<"all" | "scheduled" | "week" | "unscheduled">("all");
@@ -38,6 +50,7 @@ export default function Plan() {
       setGoal("");
       setDeadline("");
       setDaily(60);
+      setCreateOpen(false);
     } catch {
       // Mutation error is surfaced through createPlanMut.error below.
     }
@@ -61,6 +74,7 @@ export default function Plan() {
     .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())[0];
   const weekDeadlineCount = plans.filter((item) => item.deadline && isWithinDays(item.deadline, 7)).length;
   const unscheduledCount = plans.filter((item) => !item.deadline).length;
+  const scheduledRate = plans.length ? Math.round(((plans.length - unscheduledCount) / plans.length) * 100) : 0;
   const filteredPlans = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return plans.filter((plan) => {
@@ -75,29 +89,42 @@ export default function Plan() {
         .includes(keyword);
     });
   }, [plans, search, deadlineFilter]);
+  const weeklyQueuePlans = useMemo(
+    () =>
+      plans
+        .filter((plan) => plan.deadline && isWithinDays(plan.deadline, 7))
+        .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+        .slice(0, 4),
+    [plans]
+  );
+  const focusPlanInList = useCallback((plan: any) => {
+    setDeadlineFilter("week");
+    setSearch(plan.goal || "");
+  }, []);
 
   return (
     <PageShell
       title="学习计划"
       description="为阶段目标设置截止时间和每日投入，后续任务可以围绕计划拆解。"
-      actions={<div className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">共 {plans.length} 个计划</div>}
+      actions={
+        <>
+          <div className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">共 {plans.length} 个计划</div>
+          <PrimaryButton onClick={() => setCreateOpen(true)}>
+            <Plus size={16} />
+            生成计划
+          </PrimaryButton>
+        </>
+      }
     >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <MetricCard label="计划数量" value={plans.length} hint="当前正在追踪" icon={Route} tone="blue" />
-        <MetricCard label="每日投入" value={`${totalMinutes} 分钟`} hint="所有计划累计" icon={Clock3} tone="emerald" />
-        <MetricCard label="最近截止" value={nextDeadline ? formatDate(nextDeadline.deadline) : "未设置"} hint={`${weekDeadlineCount} 个计划 7 天内到期，${unscheduledCount} 个未设截止`} icon={CalendarClock} tone="amber" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(320px,390px)_minmax(0,1fr)]">
-        <Surface className="h-fit p-5">
-          <div className="mb-5 flex items-center gap-3">
-            <IconBadge icon={Plus} tone="slate" />
-            <div>
-              <h2 className="text-sm font-semibold text-slate-950">生成新计划</h2>
-              <p className="mt-0.5 text-xs text-slate-500">填写目标、截止时间和每日可投入时间。</p>
-            </div>
-          </div>
-          <form onSubmit={onCreate} className="space-y-3">
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="border-slate-200 bg-white sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-slate-950">生成新计划</DialogTitle>
+            <DialogDescription className="text-slate-500">
+              填写目标、截止时间和每日可投入时间。
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={onCreate} className="space-y-4">
             <TextAreaField
               rows={4}
               value={goal}
@@ -105,18 +132,51 @@ export default function Plan() {
               placeholder="如：两周复习完高数期末重点"
               required
             />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <TextField type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
               <TextField type="number" min={5} value={daily} onChange={(e) => setDaily(Number(e.target.value))} />
             </div>
-            <PrimaryButton type="submit" disabled={createPlanMut.isPending} className="w-full">
-              <Plus size={16} />
-              {createPlanMut.isPending ? "生成中..." : "生成计划"}
-            </PrimaryButton>
+            <DialogFooter className="gap-3 pt-1 sm:space-x-0">
+              <SecondaryButton type="button" onClick={() => setCreateOpen(false)}>取消</SecondaryButton>
+              <PrimaryButton type="submit" disabled={createPlanMut.isPending}>
+                <Plus size={16} />
+                {createPlanMut.isPending ? "生成中..." : "生成计划"}
+              </PrimaryButton>
+            </DialogFooter>
           </form>
-        </Surface>
+        </DialogContent>
+      </Dialog>
 
-        <div className="space-y-4">
+      <PlanCommandPanel
+        plans={weeklyQueuePlans}
+        totalMinutes={totalMinutes}
+        scheduledRate={scheduledRate}
+        weekDeadlineCount={weekDeadlineCount}
+        unscheduledCount={unscheduledCount}
+        onFocusPlan={focusPlanInList}
+      />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+        <Surface className="flex items-center gap-5 p-5">
+          <div className="relative shrink-0">
+            <ProgressRing value={scheduledRate} className="size-24 text-lg" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-slate-500">已排期占比</div>
+            <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{scheduledRate}%</div>
+            <p className="mt-1.5 text-xs leading-5 text-slate-500">
+              {plans.length - unscheduledCount}/{plans.length} 个计划已设置截止时间
+            </p>
+          </div>
+        </Surface>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <MetricCard label="计划数量" value={plans.length} hint="当前正在追踪" icon={Route} tone="blue" />
+          <MetricCard label="每日投入" value={`${totalMinutes} 分钟`} hint="所有计划累计" icon={Clock3} tone="emerald" />
+          <MetricCard label="最近截止" value={nextDeadline ? formatDate(nextDeadline.deadline) : "未设置"} hint={`${weekDeadlineCount} 个 7 天内到期`} icon={CalendarClock} tone="amber" />
+        </div>
+      </div>
+
+      <div className="space-y-4">
           {pageErrorMessage && <ErrorState message={pageErrorMessage} />}
           {loading ? (
             <div className="space-y-3">
@@ -125,7 +185,12 @@ export default function Plan() {
               ))}
             </div>
           ) : plans.length === 0 ? (
-            <EmptyState title="暂无学习计划" description="创建第一个计划后，这里会展示目标、截止时间和每日投入。" icon={Route} />
+            <EmptyState
+              title="暂无学习计划"
+              description="创建第一个计划后，这里会展示目标、截止时间和每日投入。"
+              icon={Route}
+              action={<PrimaryButton onClick={() => setCreateOpen(true)}>创建第一个计划</PrimaryButton>}
+            />
           ) : (
             <>
               <Surface className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -208,7 +273,6 @@ export default function Plan() {
               )}
             </>
           )}
-        </div>
       </div>
 
       <AnimatePresence>
@@ -242,7 +306,7 @@ export default function Plan() {
                 <SecondaryButton type="button" onClick={() => setDeletingPlan(null)}>取消</SecondaryButton>
                 <PrimaryButton
                   type="button"
-                  className="bg-rose-600 hover:bg-rose-500 focus-visible:ring-rose-300"
+                  tone="danger"
                   disabled={deletePlanMut.isPending}
                   onClick={() => deletePlan(deletingPlan.id)}
                 >
@@ -255,6 +319,150 @@ export default function Plan() {
         )}
       </AnimatePresence>
     </PageShell>
+  );
+}
+
+function PlanCommandPanel({
+  plans,
+  totalMinutes,
+  scheduledRate,
+  weekDeadlineCount,
+  unscheduledCount,
+  onFocusPlan,
+}: {
+  plans: any[];
+  totalMinutes: number;
+  scheduledRate: number;
+  weekDeadlineCount: number;
+  unscheduledCount: number;
+  onFocusPlan: (plan: any) => void;
+}) {
+  const nextPlan = plans[0];
+  const stackCards = useMemo(
+    () =>
+      plans.length
+        ? plans.map((plan) => (
+            <PlanStackCard
+              key={plan.id}
+              plan={plan}
+              onFocus={() => onFocusPlan(plan)}
+            />
+          ))
+        : [<PlanStackEmpty key="empty" />],
+    [onFocusPlan, plans]
+  );
+
+  return (
+    <SpotlightCard
+      radius={420}
+      color="rgba(15,23,42,0.08)"
+      className="overflow-hidden rounded-3xl border border-white/80 bg-white/82 shadow-[0_18px_54px_rgba(15,23,42,0.10)] backdrop-blur"
+    >
+      <div className="absolute inset-0 overflow-hidden rounded-3xl">
+        <span className="absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(15,23,42,0.06),transparent_28rem),linear-gradient(135deg,rgba(255,255,255,0.72),rgba(248,250,252,0.42)_55%,rgba(226,232,240,0.36))]" />
+      </div>
+      <div className="relative grid gap-6 p-5 text-slate-950 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-6">
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-500 shadow-sm">
+            <Route size={14} />
+            学习计划中枢
+          </div>
+          <h2 className="mt-4 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
+            先看一周内到期的计划，再把要处理的目标定位出来。
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+            当前累计每日投入 {totalMinutes} 分钟，{scheduledRate}% 的计划已经排期，{weekDeadlineCount} 个目标在 7 天内到期。
+          </p>
+          <div className="mt-5 grid max-w-xl grid-cols-1 gap-2 text-xs text-slate-500 sm:grid-cols-3">
+            <span className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2">
+              <span className="block text-slate-400">已排期</span>
+              <span className="mt-1 block font-semibold text-slate-900">{scheduledRate}%</span>
+            </span>
+            <span className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2">
+              <span className="block text-slate-400">本周到期</span>
+              <span className="mt-1 block font-semibold text-slate-900">{weekDeadlineCount} 个</span>
+            </span>
+            <span className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2">
+              <span className="block text-slate-400">未设截止</span>
+              <span className="mt-1 block font-semibold text-slate-900">{unscheduledCount} 个</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm backdrop-blur">
+          <div className="px-2 pb-2 pt-1">
+            <div className="text-xs font-medium text-slate-400">计划队列</div>
+            <div className="mt-1 text-sm font-semibold text-slate-950">
+              {nextPlan ? "未来 7 天内优先查看的计划" : "本周暂无到期计划"}
+            </div>
+          </div>
+          <div className="relative mt-2 h-64">
+            <Stack
+              cards={stackCards}
+              sensitivity={90}
+              sendToBackOnClick
+              animationConfig={{ stiffness: 280, damping: 24 }}
+              mobileClickOnly
+            />
+          </div>
+        </div>
+      </div>
+    </SpotlightCard>
+  );
+}
+
+function PlanStackCard({ plan, onFocus }: { plan: any; onFocus: () => void }) {
+  return (
+    <div className="flex h-full w-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-[0_16px_36px_rgba(15,23,42,0.12)]">
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-white">
+            <Route size={17} />
+          </span>
+          <DeadlineBadge deadline={plan.deadline} />
+        </div>
+        <div className="text-xs font-medium text-slate-400">学习目标</div>
+        <h3 className="mt-1 line-clamp-3 text-base font-semibold leading-6 text-slate-950">{plan.goal}</h3>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-xl bg-slate-50 p-3">
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <CalendarClock size={13} />
+            截止
+          </div>
+          <div className="mt-1 truncate font-medium text-slate-800">{plan.deadline ? formatDate(plan.deadline) : "未设置"}</div>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-3">
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <Clock3 size={13} />
+            每日
+          </div>
+          <div className="mt-1 font-medium text-slate-800">{plan.daily_minutes} 分钟</div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onFocus();
+        }}
+        className="mt-3 inline-flex h-9 items-center justify-center rounded-lg bg-slate-950 px-3 text-xs font-medium text-white shadow-sm transition hover:bg-slate-800"
+      >
+        定位列表
+      </button>
+    </div>
+  );
+}
+
+function PlanStackEmpty() {
+  return (
+    <div className="flex h-full w-full flex-col justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center shadow-sm">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+        <Route size={20} />
+      </div>
+      <div className="mt-4 text-sm font-semibold text-slate-950">本周暂无到期计划</div>
+      <p className="mt-2 text-xs leading-5 text-slate-500">7 天内到期的计划会显示在这里。</p>
+    </div>
   );
 }
 

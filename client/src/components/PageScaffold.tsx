@@ -31,22 +31,27 @@ export function PageShell({
     >
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <motion.header
-          className="group relative overflow-hidden rounded-lg border border-white/70 bg-white/82 px-5 py-5 shadow-[0_14px_45px_rgba(15,23,42,0.07)] backdrop-blur"
+          className="group glass-card relative overflow-hidden rounded-2xl px-6 py-5"
           whileHover={reduceMotion ? undefined : { y: -1 }}
           transition={{ duration: 0.2 }}
         >
+          {/* 左侧品牌渐变竖条 */}
+          <span className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-full bg-gradient-brand opacity-80" />
+          {/* 顶部渐变高光线 */}
           <motion.span
             className="pointer-events-none absolute inset-x-0 top-0 h-px origin-center bg-gradient-to-r from-transparent via-slate-500/55 to-transparent"
             initial={reduceMotion ? false : { scaleX: 0, opacity: 0 }}
             animate={reduceMotion ? undefined : { scaleX: 1, opacity: 1 }}
             transition={{ duration: 0.55, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
           />
+          {/* 右上角柔光晕 */}
+          <span className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-gradient-brand opacity-[0.07] blur-2xl" />
           <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.56)_42%,transparent_74%)] opacity-0 transition duration-500 group-hover:opacity-100" />
-          <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div className="relative flex flex-wrap items-end justify-between gap-4 pl-2">
             <div className="min-w-0">
-              {eyebrow && <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{eyebrow}</div>}
+              {eyebrow && <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{eyebrow}</div>}
               <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
-              {description && <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">{description}</p>}
+              {description && <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">{description}</p>}
             </div>
             {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">{actions}</div>}
           </div>
@@ -73,7 +78,7 @@ export function Surface({
   className?: string;
 } & HTMLAttributes<HTMLElement>) {
   return (
-    <section className={cn("surface-card rounded-lg border border-slate-200 bg-white/95 shadow-sm backdrop-blur", className)} {...props}>
+    <section className={cn("surface-card rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_28px_rgba(15,23,42,0.05)] backdrop-blur", className)} {...props}>
       {children}
     </section>
   );
@@ -91,32 +96,38 @@ export function SectionTitle({
   return (
     <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-b from-white to-slate-50/60 px-5 py-4">
       <div className="min-w-0">
-        <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
-        {description && <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>}
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+          <span className="h-3.5 w-1 rounded-full bg-gradient-brand" />
+          {title}
+        </h2>
+        {description && <p className="mt-1 pl-3 text-xs leading-5 text-slate-500">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }
 
+type BadgeTone = "slate" | "blue" | "violet" | "emerald" | "amber" | "rose" | "brand";
+
 export function IconBadge({
   icon: Icon,
   tone = "slate",
 }: {
   icon: IconType;
-  tone?: "slate" | "blue" | "violet" | "emerald" | "amber" | "rose";
+  tone?: BadgeTone;
 }) {
-  const tones = {
+  const tones: Record<BadgeTone, string> = {
     slate: "bg-slate-100 text-slate-700 shadow-slate-200/60",
     blue: "bg-blue-50 text-blue-600 shadow-blue-200/60",
     violet: "bg-violet-50 text-violet-600 shadow-violet-200/60",
     emerald: "bg-emerald-50 text-emerald-600 shadow-emerald-200/60",
     amber: "bg-amber-50 text-amber-600 shadow-amber-200/60",
     rose: "bg-rose-50 text-rose-600 shadow-rose-200/60",
+    brand: "bg-gradient-brand text-white shadow-[0_8px_20px_rgba(15,23,42,0.24)] ring-white/40",
   };
 
   return (
-    <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-sm ring-1 ring-white/80 transition group-hover:-translate-y-0.5 group-hover:shadow-md", tones[tone])}>
+    <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm ring-1 ring-white/80 transition duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md", tones[tone])}>
       <Icon size={18} strokeWidth={2.1} />
     </span>
   );
@@ -134,31 +145,33 @@ export function MetricCard({
   value: ReactNode;
   hint?: ReactNode;
   icon: IconType;
-  tone?: "slate" | "blue" | "violet" | "emerald" | "amber" | "rose";
+  tone?: BadgeTone;
   progress?: number;
 }) {
-  const barTones = {
+  const barTones: Record<BadgeTone, string> = {
     slate: "bg-slate-900",
     blue: "bg-blue-600",
     violet: "bg-violet-600",
     emerald: "bg-emerald-600",
     amber: "bg-amber-500",
     rose: "bg-rose-500",
+    brand: "bg-gradient-brand",
   };
 
   return (
-    <Surface className="group relative overflow-hidden p-4 transition duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-[0_18px_50px_rgba(15,23,42,0.10)]">
-      <span className="pointer-events-none absolute inset-x-4 top-0 h-px scale-x-0 bg-gradient-to-r from-transparent via-slate-500/50 to-transparent transition duration-300 group-hover:scale-x-100" />
-      <div className="flex items-start justify-between gap-3">
+    <Surface className="group relative overflow-hidden p-4 transition duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-lift)]">
+      <span className="pointer-events-none absolute inset-x-4 top-0 h-px scale-x-0 bg-gradient-to-r from-transparent via-slate-500/60 to-transparent transition duration-300 group-hover:scale-x-100" />
+      <span className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-gradient-brand-soft opacity-0 blur-2xl transition duration-500 group-hover:opacity-100" />
+      <div className="relative flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-medium text-slate-500">{label}</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</div>
+          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 tabular-nums">{value}</div>
         </div>
         <IconBadge icon={icon} tone={tone} />
       </div>
-      {hint && <div className="mt-2 text-xs text-slate-500">{hint}</div>}
+      {hint && <div className="relative mt-2 text-xs text-slate-500">{hint}</div>}
       {typeof progress === "number" && (
-        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div className="relative mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
           <div
             className={cn("h-full rounded-full transition-[width] duration-700 ease-out group-hover:brightness-110", barTones[tone])}
             style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
@@ -207,17 +220,24 @@ export function ErrorState({ message }: { message: string }) {
 export function PrimaryButton({
   children,
   className,
+  tone = "brand",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "brand" | "danger" }) {
+  const toneClass =
+    tone === "danger"
+      ? "bg-rose-600 shadow-[0_6px_18px_rgba(225,29,72,0.28)] hover:bg-rose-500 hover:shadow-[0_10px_28px_rgba(225,29,72,0.4)] focus-visible:ring-rose-400"
+      : "bg-gradient-brand shadow-[0_6px_18px_rgba(15,23,42,0.24)] hover:shadow-[0_10px_28px_rgba(15,23,42,0.34)] focus-visible:ring-slate-500";
   return (
     <button
       className={cn(
-        "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
+        "group/btn relative inline-flex h-10 items-center justify-center gap-2 overflow-hidden rounded-lg px-4 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
+        toneClass,
         className
       )}
       {...props}
     >
-      {children}
+      <span className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.45)_50%,transparent_75%)] transition-transform duration-700 group-hover/btn:translate-x-full" />
+      <span className="relative inline-flex items-center gap-2">{children}</span>
     </button>
   );
 }

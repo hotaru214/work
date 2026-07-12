@@ -25,6 +25,9 @@ import {
 import { useCourses, useDeleteTask, useMe, useTasks, useToggleTask } from "../hooks/api";
 import { useMutationToast } from "../components/ui/toast";
 import { InteractiveHoverButton } from "../components/ui/interactive-hover-button";
+import { RippleButton } from "../components/ui/ripple-button";
+import ProgressRing from "../components/ProgressRing";
+import SpotlightCard from "../components/SpotlightCard";
 import {
   EmptyState,
   ErrorState,
@@ -74,6 +77,7 @@ export default function Profile() {
     return true;
   });
   const taskCompletionRate = taskItems.length ? Math.round((completedTasks / taskItems.length) * 100) : 0;
+  const connectionCount = (yuqueUser ? 1 : 0) + (triliumConnected ? 1 : 0);
 
   useEffect(() => {
     if (me) setNickname(me.nickname || "学习者");
@@ -215,10 +219,21 @@ export default function Profile() {
 
   return (
     <PageShell title="个人中心" description="管理头像、昵称、外部知识库连接和待办任务。">
+      <ProfileOverview
+        me={me}
+        nickname={nickname}
+        avatarPreview={avatarPreview}
+        taskCompletionRate={taskCompletionRate}
+        activeTasks={activeTasks}
+        courseCount={courseCount}
+        connectionCount={connectionCount}
+        onEditNickname={() => setEditingNickname(true)}
+      />
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <MetricCard label="课程数" value={courseCount} hint="当前学习课程" icon={Cloud} tone="blue" />
         <MetricCard label="任务数" value={taskItems.length} hint={`${completedTasks} 个已完成`} icon={CheckCircle2} tone="emerald" progress={taskCompletionRate} />
-        <MetricCard label="外部连接" value={(yuqueUser ? 1 : 0) + (triliumConnected ? 1 : 0)} hint="语雀 / Trilium" icon={Link2} tone="violet" />
+        <MetricCard label="外部连接" value={connectionCount} hint="语雀 / Trilium" icon={Link2} tone="violet" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(340px,420px)_minmax(0,1fr)]">
@@ -530,6 +545,104 @@ export default function Profile() {
         )}
       </AnimatePresence>
     </PageShell>
+  );
+}
+
+function ProfileOverview({
+  me,
+  nickname,
+  avatarPreview,
+  taskCompletionRate,
+  activeTasks,
+  courseCount,
+  connectionCount,
+  onEditNickname,
+}: {
+  me: any;
+  nickname: string;
+  avatarPreview: string | null;
+  taskCompletionRate: number;
+  activeTasks: number;
+  courseCount: number;
+  connectionCount: number;
+  onEditNickname: () => void;
+}) {
+  const avatarUrl = avatarPreview || resolveAssetUrl(me?.avatar_url);
+
+  return (
+    <SpotlightCard
+      radius={420}
+      color="rgba(15,23,42,0.08)"
+      className="overflow-hidden rounded-3xl border border-white/80 bg-white/82 shadow-[0_18px_54px_rgba(15,23,42,0.10)] backdrop-blur"
+    >
+      <div className="absolute inset-0 overflow-hidden rounded-3xl">
+        <span className="absolute inset-0 bg-[radial-gradient(circle_at_14%_16%,rgba(15,23,42,0.06),transparent_28rem),linear-gradient(135deg,rgba(255,255,255,0.72),rgba(248,250,252,0.42)_55%,rgba(226,232,240,0.36))]" />
+      </div>
+      <div className="relative grid gap-6 p-5 text-slate-950 lg:grid-cols-[minmax(0,1fr)_260px] lg:p-6">
+        <div className="flex min-w-0 items-center gap-5">
+          <motion.div
+            className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-slate-200 bg-white text-3xl font-semibold text-slate-950 shadow-[0_18px_40px_rgba(15,23,42,0.10)]"
+            whileHover={{ rotate: -2, scale: 1.03 }}
+            transition={{ duration: 0.22 }}
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="头像" className="h-full w-full object-cover" />
+            ) : (
+              "学"
+            )}
+            <span className="pointer-events-none absolute inset-x-3 top-0 h-px bg-white/70" />
+          </motion.div>
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-500 shadow-sm">
+              <UserRound size={14} />
+              本地学习账户
+            </div>
+            <h2 className="mt-4 truncate text-2xl font-semibold tracking-tight sm:text-3xl">{nickname || "学习者"}</h2>
+            <p className="mt-2 truncate text-sm text-slate-500">@{me?.username || "未登录"}</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <RippleButton
+                type="button"
+                rippleColor="rgba(255,255,255,0.34)"
+                onClick={onEditNickname}
+                className="h-10 rounded-lg border-slate-950 bg-slate-950 px-4 py-0 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
+              >
+                编辑昵称
+              </RippleButton>
+              <span className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white/70 px-4 text-sm text-slate-500 shadow-sm">
+                {connectionCount > 0 ? `${connectionCount} 个外部连接已就绪` : "还没有连接外部知识库"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs font-medium text-slate-400">任务完成率</div>
+              <div className="mt-1 text-sm text-slate-700">个人节奏</div>
+            </div>
+            <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
+              {activeTasks} 项待办
+            </span>
+          </div>
+          <div className="mt-5 flex items-center justify-center">
+            <div className="rounded-full bg-white/95 p-2 shadow-[0_16px_42px_rgba(0,0,0,0.24)]">
+              <ProgressRing value={taskCompletionRate} className="size-28 text-slate-950" />
+            </div>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-slate-400">课程</div>
+              <div className="mt-1 text-lg font-semibold">{courseCount}</div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-slate-400">连接</div>
+              <div className="mt-1 text-lg font-semibold">{connectionCount}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </SpotlightCard>
   );
 }
 

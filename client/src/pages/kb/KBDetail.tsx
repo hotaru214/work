@@ -6,6 +6,13 @@ import { useSidebar } from "../../contexts/SidebarContext";
 import { mdToHtml, htmlToMd } from "../../utils/markdown";
 import VirtualTree from "../../components/VirtualTree";
 import { DetailSkeleton } from "../../components/skeleton/Skeletons";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
 import { useMutationToast } from "../../components/ui/toast";
 import { useAutosaveDraft } from "../../hooks/useAutosaveDraft";
 import { useKbNote, useKbTree, usePrefetchKbNote, useTags } from "../../hooks/api";
@@ -486,11 +493,11 @@ export default function KBDetail() {
   }
 
   return (
-    <div className="relative flex h-full bg-slate-50 text-slate-950">
+    <div className="app-surface-bg relative flex h-full text-slate-950">
       {/* Sub-sidebar: Note Tree */}
-      <div className="flex shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-200"
+      <div className="relative z-10 flex shrink-0 flex-col overflow-hidden border-r border-white/80 bg-white/82 shadow-[8px_0_28px_rgba(15,23,42,0.04)] backdrop-blur transition-all duration-200"
         style={{ width: subSidebarOpen ? "16rem" : "0rem", minWidth: subSidebarOpen ? "16rem" : "0rem" }}>
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100/80 bg-white/60 px-4 py-4">
           <div className="flex items-center gap-2 min-w-0">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
               <BookOpen size={16} />
@@ -502,7 +509,7 @@ export default function KBDetail() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto">
           <div className="relative px-3 pb-2 pt-3" ref={menuRef}>
             <button onClick={() => setShowCreateMenu(!showCreateMenu)}
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100 hover:text-slate-950">
@@ -554,14 +561,14 @@ export default function KBDetail() {
       </div>
 
       {/* Main content area */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
         {isBook ? (
           <div className="flex flex-1 items-center justify-center p-8 text-slate-400">
             <motion.div
               initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-              className="rounded-lg border border-dashed border-slate-300 bg-white px-10 py-12 text-center shadow-sm"
+              className="rounded-2xl border border-dashed border-slate-300 bg-white/90 px-10 py-12 text-center shadow-[0_18px_54px_rgba(15,23,42,0.08)] backdrop-blur"
             >
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
                 <BookOpen size={26} />
@@ -573,7 +580,7 @@ export default function KBDetail() {
         ) : (
           <>
             {/* Toolbar */}
-            <div ref={dropdownRef} className="flex h-12 shrink-0 select-none items-center gap-1 border-b border-slate-200 bg-white px-3 py-2">
+            <div ref={dropdownRef} className="flex h-12 shrink-0 select-none items-center gap-1 border-b border-slate-200/80 bg-white/88 px-3 py-2 shadow-sm backdrop-blur">
               {/* 基础格式按钮（可横向滚动） */}
               <div className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap">
                 <button onClick={() => execCmd("undo")} className="tb-btn" title="撤销"><Undo2 size={14} /></button>
@@ -722,7 +729,7 @@ export default function KBDetail() {
             </div>
 
             {/* Title bar */}
-            <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-4">
+            <div className="shrink-0 border-b border-slate-200/80 bg-white/88 px-6 py-4 backdrop-blur">
               <div className="flex items-center gap-3">
               <input className="min-w-0 flex-1 border-none bg-transparent text-xl font-semibold tracking-tight text-slate-950 outline-none placeholder:text-slate-300"
                 value={title} onChange={handleTitleChange} placeholder="标题" />
@@ -763,14 +770,14 @@ export default function KBDetail() {
               </div>
             </div>
             {/* Editor */}
-            <div className="relative flex-1 overflow-auto bg-slate-50 px-6 py-6">
+            <div className="relative flex-1 overflow-auto bg-transparent px-6 py-6">
               {editorMode === "rich" ? (
                 <motion.div
                   ref={editorRef}
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.22 }}
-                  className="mx-auto min-h-full w-full max-w-4xl rounded-lg border border-slate-200 bg-white p-8 pb-16 text-base leading-7 shadow-sm outline-none"
+                  className="mx-auto min-h-full w-full max-w-4xl rounded-2xl border border-white/80 bg-white/96 p-8 pb-16 text-base leading-7 shadow-[0_18px_54px_rgba(15,23,42,0.08)] outline-none transition focus:border-slate-300 focus:shadow-[0_24px_70px_rgba(15,23,42,0.12)]"
                   contentEditable suppressContentEditableWarning onInput={handleEditorInput}
                   style={{ minHeight: "100%" }} data-placeholder="开始写笔记..." />
               ) : (
@@ -1060,43 +1067,28 @@ export default function KBDetail() {
       )}
       </AnimatePresence>
 
-      <AnimatePresence>
-      {showCreateModal && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-          onClick={() => setShowCreateModal(false)}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <motion.div
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-            initial={{ opacity: 0, y: 18, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <h2 className="mb-5 text-lg font-semibold text-slate-950">
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent className="border-slate-200 bg-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-slate-950">
               {CREATE_OPTIONS.find((o) => o.type === createType)?.label}
-            </h2>
-            <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }}>
-              <div className="mb-5">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">名称</label>
-                <input className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-                  value={newTitle} onChange={(e) => setNewTitle(e.target.value)} autoFocus required />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="rounded-lg px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100">取消</button>
-                <button type="submit" className="rounded-lg bg-slate-950 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-800">创建</button>
-              </div>
-            </form>
-          </motion.div>
-        </motion.div>
-      )}
-      </AnimatePresence>
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }} className="space-y-5">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">名称</label>
+              <input className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                value={newTitle} onChange={(e) => setNewTitle(e.target.value)} autoFocus required />
+            </div>
+            <DialogFooter className="gap-3 sm:space-x-0">
+              <button type="button" onClick={() => setShowCreateModal(false)} className="rounded-lg px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100">取消</button>
+              <button type="submit" className="rounded-lg bg-slate-950 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-800">创建</button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-      <style dangerouslySetInnerHTML={{ __html: "@keyframes fade-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in{animation:fade-in .15s ease-out}.tb-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;font-size:12px;color:#475569;transition:all .15s;flex-shrink:0;cursor:pointer;background:none;border:none;padding:0;outline:none}.tb-btn:hover{background-color:#f1f5f9;color:#0f172a}.tb-btn:focus-visible{box-shadow:0 0 0 2px #cbd5e1}" }} />
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes fade-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in{animation:fade-in .15s ease-out}.tb-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;font-size:12px;color:#475569;transition:transform .16s ease,background-color .16s ease,color .16s ease,box-shadow .16s ease;flex-shrink:0;cursor:pointer;background:rgba(255,255,255,.6);border:1px solid transparent;padding:0;outline:none}.tb-btn:hover{transform:translateY(-1px);background-color:#fff;color:#0f172a;border-color:#e2e8f0;box-shadow:0 8px 20px rgba(15,23,42,.08)}.tb-btn:active{transform:translateY(0) scale(.96)}.tb-btn:focus-visible{box-shadow:0 0 0 2px #cbd5e1,0 8px 20px rgba(15,23,42,.08)}" }} />
 
     </div>
   );

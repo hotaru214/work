@@ -7,6 +7,7 @@ import { useMutationToast } from "../../components/ui/toast";
 import { useAutosaveDraft } from "../../hooks/useAutosaveDraft";
 import { useTags } from "../../hooks/api";
 import { IconBadge, PageShell, PrimaryButton, Surface, TextAreaField, TextField } from "../../components/PageScaffold";
+import ProgressRing from "../../components/ProgressRing";
 
 export default function PostEditor() {
   const navigate = useNavigate();
@@ -20,6 +21,13 @@ export default function PostEditor() {
   const selectedTags = allTags.filter((tag: any) => selectedTagIds.includes(tag.id));
   const contentLength = content.trim().length;
   const titleLength = title.trim().length;
+  const readinessItems = [
+    { label: "标题", done: titleLength > 0, hint: titleLength ? `${titleLength}/80` : "还没有标题" },
+    { label: "正文", done: contentLength >= 20, hint: contentLength ? `${contentLength} 字` : "建议写清背景和问题" },
+    { label: "标签", done: selectedTagIds.length > 0, hint: selectedTagIds.length ? `${selectedTagIds.length} 个标签` : "可选，但方便筛选" },
+  ];
+  const readiness = Math.round((readinessItems.filter((item) => item.done).length / readinessItems.length) * 100);
+  const readinessText = readiness === 100 ? "可以发布" : readiness >= 67 ? "基本就绪" : "继续补充";
   const toast = useMutationToast();
   const draft = useAutosaveDraft(
     "draft:post-editor",
@@ -156,17 +164,50 @@ export default function PostEditor() {
             </form>
           </Surface>
 
-          <Surface className="h-fit overflow-hidden p-0">
-            <div className="border-b border-slate-100 p-5">
+          <Surface className="h-fit overflow-hidden p-0 xl:sticky xl:top-6">
+            <div className="relative overflow-hidden border-b border-slate-100 p-5">
+              <span className="pointer-events-none absolute -right-12 -top-16 h-36 w-36 rounded-full bg-violet-500/10 blur-2xl" />
               <div className="flex items-center gap-3">
                 <IconBadge icon={Sparkles} tone="violet" />
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-950">发布预览</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">检查标题、标签和正文可读性。</p>
+                  <h2 className="text-sm font-semibold text-slate-950">发布检查</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">确认结构完整，再发布到讨论区。</p>
                 </div>
               </div>
             </div>
             <div className="space-y-4 p-5">
+              <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-4">
+                <div className="flex items-center gap-4">
+                  <ProgressRing value={readiness} className="size-20 text-base" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-slate-400">准备度</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-950">{readinessText}</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      不强制标签，但建议补齐，方便后续检索和沉淀。
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {readinessItems.map((item, index) => (
+                    <motion.div
+                      key={item.label}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, delay: Math.min(index * 0.04, 0.16) }}
+                      className="flex items-center justify-between gap-3 rounded-xl bg-white/80 px-3 py-2 text-xs ring-1 ring-slate-100"
+                    >
+                      <span className="flex items-center gap-2 font-medium text-slate-700">
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-full ${item.done ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-400"}`}>
+                          {item.done ? <Check size={12} /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+                        </span>
+                        {item.label}
+                      </span>
+                      <span className="text-slate-400">{item.hint}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                 <div className="text-xs font-medium text-slate-400">标题</div>
                 <div className="mt-2 line-clamp-2 text-base font-semibold text-slate-950">

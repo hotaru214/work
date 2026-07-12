@@ -1,15 +1,25 @@
 import { useCallback, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
 import { BadgeCheck, Eye, Heart, MessageCircle, PenLine, Plus } from "lucide-react";
 import { resolveAssetUrl } from "../../api/client";
 import { usePosts, usePrefetchPost } from "../../hooks/api";
 import { ListSkeleton } from "../../components/skeleton/Skeletons";
+import AnimatedList from "../../components/AnimatedList";
 import { cn } from "../../lib/utils";
 import { ProgressiveBlur } from "../../components/ui/progressive-blur";
 import { GooeyInput } from "../../components/ui/gooey-input";
-import { EmptyState, PageShell } from "../../components/PageScaffold";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "../../components/ui/pagination";
+import { EmptyState, PageShell, SecondaryButton } from "../../components/PageScaffold";
 import { preloadPage } from "../../pageLoaders";
+
+const PAGE_SIZE = 8;
 
 function getInitial(name?: string) {
   return (name || "学").trim().slice(0, 1).toUpperCase();
@@ -34,9 +44,11 @@ function stripHtml(value?: string) {
 function ForumTweetCard({
   post,
   onPrefetch,
+  selected,
 }: {
   post: any;
   onPrefetch: () => void;
+  selected?: boolean;
 }) {
   const author = post.author_nickname || post.author_name || "学习者";
   const username = post.author_username || post.username || "unknown";
@@ -44,21 +56,14 @@ function ForumTweetCard({
   const content = stripHtml(post.content);
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-      whileHover={{ y: -4 }}
-    >
     <Link
       to={`/forum/${post.id}`}
       onMouseEnter={onPrefetch}
       onFocus={onPrefetch}
       className={cn(
         "group relative block overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-sm transition-all duration-200",
-        "hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70"
+        "hover:-translate-y-1 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70",
+        selected && "border-slate-300 shadow-xl shadow-slate-200/70"
       )}
     >
       <span className="pointer-events-none absolute inset-x-5 top-0 h-px scale-x-0 bg-slate-950/40 transition duration-300 group-hover:scale-x-100" />
@@ -143,7 +148,6 @@ function ForumTweetCard({
         )}
       </div>
     </Link>
-    </motion.div>
   );
 }
 
@@ -151,6 +155,7 @@ export default function ForumList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const sort = searchParams.get("sort") || "latest";
   const search = searchParams.get("search") || "";
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const [inputVal, setInputVal] = useState(search);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const prefetchPost = usePrefetchPost();
@@ -158,13 +163,34 @@ export default function ForumList() {
   const { data: posts = [], isLoading: loading } = usePosts({
     sort,
     search: search || undefined,
-    page_size: 50,
+    page,
+    page_size: PAGE_SIZE,
   });
+  const hasNextPage = posts.length === PAGE_SIZE;
 
   function setSort(s: string) {
     setSearchParams((prev) => {
-      prev.set("sort", s);
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.set("sort", s);
+      next.delete("page");
+      return next;
+    });
+  }
+
+  function pageHref(nextPage: number) {
+    const next = new URLSearchParams(searchParams);
+    if (nextPage <= 1) next.delete("page");
+    else next.set("page", String(nextPage));
+    const query = next.toString();
+    return query ? `?${query}` : "/forum";
+  }
+
+  function goToPage(nextPage: number) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (nextPage <= 1) next.delete("page");
+      else next.set("page", String(nextPage));
+      return next;
     });
   }
 
@@ -173,9 +199,11 @@ export default function ForumList() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setSearchParams((prev) => {
-        if (val) prev.set("search", val);
-        else prev.delete("search");
-        return prev;
+        const next = new URLSearchParams(prev);
+        if (val) next.set("search", val);
+        else next.delete("search");
+        next.delete("page");
+        return next;
       });
     }, 300);
   }, [setSearchParams]);
@@ -225,27 +253,109 @@ export default function ForumList() {
           </div>
         </div>
 
-      {loading ? (
-        <ListSkeleton rows={5} />
-      ) : posts.length === 0 ? (
-        <EmptyState title="暂无帖子" description="可以先发布第一条课程问题或复盘。" icon={MessageCircle} />
-      ) : (
-        <div className="grid gap-4">
-          <AnimatePresence initial={false}>
-            {posts.map((post: any) => (
+        {loading ? (
+          <ListSkeleton rows={5} />
+        ) : posts.length === 0 ? (
+          <EmptyState
+            title={page > 1 ? "本页没有更多帖子" : "暂无帖子"}
+            description={page > 1 ? "已经到达列表末尾，可以返回上一页继续浏览。" : "可以先发布第一条课程问题或复盘。"}
+            icon={MessageCircle}
+            action={
+              page > 1 ? (
+                <SecondaryButton type="button" onClick={() => goToPage(page - 1)}>
+                  返回上一页
+                </SecondaryButton>
+              ) : undefined
+            }
+          />
+        ) : (
+          <AnimatedList
+            items={posts}
+            getItemKey={(post: any) => post.id}
+            enableArrowNavigation={false}
+            showGradients
+            className="forum-animated-list"
+            renderItem={(post: any, _index, selected) => (
               <ForumTweetCard
-                key={post.id}
                 post={post}
+                selected={selected}
                 onPrefetch={() => {
                   preloadPage("postDetail");
                   prefetchPost(post.id);
                 }}
               />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
-    </div>
+            )}
+          />
+        )}
+
+        {!loading && posts.length > 0 && (page > 1 || hasNextPage) && (
+          <Pagination className="pt-1">
+            <PaginationContent className="rounded-2xl border border-slate-200 bg-white/90 p-1.5 shadow-sm backdrop-blur">
+              {page > 1 && (
+                <PaginationItem>
+                  <PaginationPrevious
+                    href={pageHref(page - 1)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      goToPage(page - 1);
+                    }}
+                    className="rounded-xl text-slate-600 hover:bg-slate-100"
+                  />
+                </PaginationItem>
+              )}
+              {page > 1 && (
+                <PaginationItem>
+                  <PaginationLink
+                    href={pageHref(page - 1)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      goToPage(page - 1);
+                    }}
+                    className="rounded-xl"
+                  >
+                    {page - 1}
+                  </PaginationLink>
+                </PaginationItem>
+              )}
+              <PaginationItem>
+                <PaginationLink
+                  href={pageHref(page)}
+                  isActive
+                  className="rounded-xl border-slate-900 bg-slate-950 text-white hover:bg-slate-800 hover:text-white"
+                >
+                  {page}
+                </PaginationLink>
+              </PaginationItem>
+              {hasNextPage && (
+                <PaginationItem>
+                  <PaginationLink
+                    href={pageHref(page + 1)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      goToPage(page + 1);
+                    }}
+                    className="rounded-xl"
+                  >
+                    {page + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              )}
+              {hasNextPage && (
+                <PaginationItem>
+                  <PaginationNext
+                    href={pageHref(page + 1)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      goToPage(page + 1);
+                    }}
+                    className="rounded-xl text-slate-600 hover:bg-slate-100"
+                  />
+                </PaginationItem>
+              )}
+            </PaginationContent>
+          </Pagination>
+        )}
+      </div>
     </PageShell>
   );
 }

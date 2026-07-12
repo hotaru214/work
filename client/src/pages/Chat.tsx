@@ -18,6 +18,7 @@ import { api } from "../api/client";
 import { usePrefetchPost, useSessions } from "../hooks/api";
 import { EmptyState, IconBadge, PrimaryButton, SecondaryButton, Surface } from "../components/PageScaffold";
 import MarkdownRenderer from "../components/MarkdownRenderer";
+import { useTypewriter } from "../hooks/useTypewriter";
 import { preloadPage } from "../pageLoaders";
 
 const PROMPTS = [
@@ -38,11 +39,13 @@ export default function Chat() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState<any[]>([]);
+  const [typingId, setTypingId] = useState<number | null>(null);
   const prefetchPost = usePrefetchPost();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   async function loadMessages(id: number) {
     setLoadingMessages(true);
+    setTypingId(null);
     try {
       const msgs = await api.listMessages(id);
       setMessages(msgs);
@@ -92,6 +95,7 @@ export default function Chat() {
     setBusy(true);
     try {
       const reply = await api.sendMessage(sid, userText);
+      setTypingId(reply?.id ?? null);
       setMessages((m) => [...m, reply]);
       requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
     } finally {
@@ -203,7 +207,13 @@ export default function Chat() {
               <div className="mx-auto max-w-4xl space-y-4">
                 <AnimatePresence initial={false}>
                   {messages.map((message, index) => (
-                    <MessageBubble key={`${message.role}-${index}-${message.content?.slice?.(0, 16) ?? ""}`} message={message} />
+                    <MessageBubble
+                      key={`${message.role}-${index}-${message.content?.slice?.(0, 16) ?? ""}`}
+                      message={message}
+                      typing={message.role === "assistant" && message.id != null && message.id === typingId}
+                      onTypeTick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })}
+                      onTypeDone={() => setTypingId(null)}
+                    />
                   ))}
                 </AnimatePresence>
                 {busy && <TypingBubble />}
@@ -352,8 +362,30 @@ function PromptEmpty({ onPick }: { onPick: (prompt: string) => void }) {
   );
 }
 
-function MessageBubble({ message }: { message: any }) {
+function MessageBubble({
+  message,
+  typing = false,
+  onTypeTick,
+  onTypeDone,
+}: {
+  message: any;
+  typing?: boolean;
+  onTypeTick?: () => void;
+  onTypeDone?: () => void;
+}) {
   const isUser = message.role === "user";
+  const full = message.content ?? "";
+  const { display: typed, done } = useTypewriter(full, typing);
+  const shown = typing ? typed : full;
+
+  useEffect(() => {
+    if (typing && !done) onTypeTick?.();
+  }, [typing, done, shown, onTypeTick]);
+
+  useEffect(() => {
+    if (typing && done) onTypeDone?.();
+  }, [typing, done, onTypeDone]);
+
   return (
     <motion.div
       layout
@@ -368,7 +400,10 @@ function MessageBubble({ message }: { message: any }) {
       </span>
       <div className={`max-w-3xl rounded-2xl px-4 py-3 shadow-sm ${isUser ? "rounded-tr-md bg-slate-950 text-white" : "rounded-tl-md border border-slate-200 bg-white text-slate-900"}`}>
         <div className={`mb-1 text-xs font-medium ${isUser ? "text-white/60" : "text-slate-400"}`}>{isUser ? "我" : "Agent"}</div>
-        <MarkdownRenderer content={message.content} variant={isUser ? "user" : "agent"} />
+        <MarkdownRenderer content={shown} variant={isUser ? "user" : "agent"} />
+        {typing && !done && (
+          <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-slate-400 align-middle" />
+        )}
       </div>
     </motion.div>
   );

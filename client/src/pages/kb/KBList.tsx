@@ -6,7 +6,16 @@ import { ArchiveRestore, BookOpen, FileText, Layers3, Plus, Search, Trash2, X } 
 import { api } from "../../api/client";
 import { CardGridSkeleton } from "../../components/skeleton/Skeletons";
 import { GooeyInput } from "../../components/ui/gooey-input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
 import { useMutationToast } from "../../components/ui/toast";
+import SpotlightCard from "../../components/SpotlightCard";
 import { useKbRoots, useKbTrash, usePrefetchKbNote } from "../../hooks/api";
 import {
   EmptyState,
@@ -34,6 +43,7 @@ export default function KBList() {
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [search, setSearch] = useState("");
   const [densityFilter, setDensityFilter] = useState<"all" | "structured" | "plain">("all");
+  const [hoveredNote, setHoveredNote] = useState<string | null>(null);
   const { data: trashItems = [], isLoading: trashLoading, refetch: refetchTrash } = useKbTrash(showTrash);
 
   const totalChildren = notes.reduce((sum: number, note: any) => sum + countChildren(note), 0);
@@ -41,6 +51,9 @@ export default function KBList() {
     return [...notes]
       .filter((note: any) => note.dateModified)
       .sort((a: any, b: any) => new Date(b.dateModified).getTime() - new Date(a.dateModified).getTime())[0];
+  }, [notes]);
+  const featuredNote = useMemo(() => {
+    return [...notes].sort((a: any, b: any) => countChildren(b) - countChildren(a))[0];
   }, [notes]);
   const filteredNotes = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -119,6 +132,25 @@ export default function KBList() {
         </>
       }
     >
+      <KnowledgeOverview
+        total={notes.length}
+        totalChildren={totalChildren}
+        featuredNote={featuredNote}
+        recentlyUpdated={recentlyUpdated}
+        onPrefetchNote={(noteId) => {
+          preloadPage("kbDetail");
+          prefetchKbNote(noteId);
+        }}
+        onOpenNote={(noteId) => {
+          navigate(`/kb/${noteId}`);
+        }}
+        onCreate={() => {
+          setName("");
+          setDesc("");
+          setShowModal(true);
+        }}
+      />
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <MetricCard label="知识库" value={notes.length} hint="根目录数量" icon={BookOpen} tone="violet" />
         <MetricCard label="子节点" value={totalChildren} hint="已建立的内容结构" icon={Layers3} tone="blue" />
@@ -171,10 +203,23 @@ export default function KBList() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.24, delay: Math.min(index * 0.035, 0.24), ease: [0.16, 1, 0.3, 1] }}
                   whileHover={{ y: -4 }}
-                  className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md"
+                  onMouseEnter={() => setHoveredNote(note.noteId)}
+                  onMouseLeave={() => setHoveredNote(null)}
+                  className="group surface-card relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_28px_rgba(15,23,42,0.05)] transition hover:border-slate-300 hover:shadow-[var(--shadow-lift)]"
                 >
-                  <span className="pointer-events-none absolute inset-x-5 top-0 h-px scale-x-0 bg-slate-950/40 transition duration-300 group-hover:scale-x-100" />
-                  <div className="mb-5 flex items-start justify-between gap-3">
+                  <AnimatePresence>
+                    {hoveredNote === note.noteId && (
+                      <motion.span
+                        layoutId="kb-card-hover"
+                        className="pointer-events-none absolute inset-0 z-0 rounded-2xl bg-slate-100/80"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1, transition: { duration: 0.15 } }}
+                        exit={{ opacity: 0, transition: { duration: 0.15, delay: 0.1 } }}
+                      />
+                    )}
+                  </AnimatePresence>
+                  <span className="pointer-events-none absolute inset-x-5 top-0 z-10 h-px scale-x-0 bg-slate-950/40 transition duration-300 group-hover:scale-x-100" />
+                  <div className="relative z-10 mb-5 flex items-start justify-between gap-3">
                     <IconBadge icon={note.type === "book" ? BookOpen : FileText} tone="violet" />
                     <button
                       type="button"
@@ -187,7 +232,7 @@ export default function KBList() {
                   </div>
                   <button
                     type="button"
-                    className="block w-full text-left"
+                    className="relative z-10 block w-full text-left"
                     onMouseEnter={() => {
                       preloadPage("kbDetail");
                       prefetchKbNote(note.noteId);
@@ -221,44 +266,24 @@ export default function KBList() {
         />
       )}
 
-      <AnimatePresence>
-      {showModal && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-          onClick={() => setShowModal(false)}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <motion.div
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
-            onClick={(e: any) => e.stopPropagation()}
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-950">新建知识库</h2>
-                <p className="mt-1 text-sm text-slate-500">作为根目录创建，后续可继续添加子节点。</p>
-              </div>
-              <button onClick={() => setShowModal(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={onCreate} className="space-y-3">
-              <TextField placeholder="知识库名称" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
-              <TextAreaField placeholder="简要描述" value={desc} onChange={(e) => setDesc(e.target.value)} rows={4} />
-              <div className="flex justify-end gap-3 pt-2">
-                <SecondaryButton type="button" onClick={() => setShowModal(false)}>取消</SecondaryButton>
-                <PrimaryButton type="submit">创建</PrimaryButton>
-              </div>
-            </form>
-          </motion.div>
-        </motion.div>
-      )}
-      </AnimatePresence>
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="border-slate-200 bg-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-slate-950">新建知识库</DialogTitle>
+            <DialogDescription className="text-slate-500">
+              作为根目录创建，后续可继续添加子节点。
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={onCreate} className="space-y-4">
+            <TextField placeholder="知识库名称" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
+            <TextAreaField placeholder="简要描述" value={desc} onChange={(e) => setDesc(e.target.value)} rows={4} />
+            <DialogFooter className="gap-3 pt-1 sm:space-x-0">
+              <SecondaryButton type="button" onClick={() => setShowModal(false)}>取消</SecondaryButton>
+              <PrimaryButton type="submit">创建</PrimaryButton>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AnimatePresence>
       {showTrash && (
@@ -354,7 +379,7 @@ export default function KBList() {
             <div className="rounded-lg bg-slate-50 p-4 text-sm font-medium text-slate-800">{deleteTarget.title || "未命名"}</div>
             <div className="mt-5 flex justify-end gap-3">
               <SecondaryButton type="button" onClick={() => setDeleteTarget(null)}>取消</SecondaryButton>
-              <PrimaryButton type="button" className="bg-rose-600 hover:bg-rose-500 focus-visible:ring-rose-300" onClick={() => handleDelete(deleteTarget.noteId)}>
+              <PrimaryButton type="button" tone="danger" onClick={() => handleDelete(deleteTarget.noteId)}>
                 <Trash2 size={16} />
                 删除
               </PrimaryButton>
@@ -364,6 +389,117 @@ export default function KBList() {
       )}
       </AnimatePresence>
     </PageShell>
+  );
+}
+
+function KnowledgeOverview({
+  total,
+  totalChildren,
+  featuredNote,
+  recentlyUpdated,
+  onPrefetchNote,
+  onOpenNote,
+  onCreate,
+}: {
+  total: number;
+  totalChildren: number;
+  featuredNote?: any;
+  recentlyUpdated?: any;
+  onPrefetchNote: (noteId: string) => void;
+  onOpenNote: (noteId: string) => void;
+  onCreate: () => void;
+}) {
+  const priorityItems = [
+    {
+      key: "recent",
+      label: "继续最近更新",
+      title: recentlyUpdated?.title || "暂无更新记录",
+      meta: recentlyUpdated?.dateModified ? fmtDate(recentlyUpdated.dateModified) : "编辑后会出现在这里",
+      note: recentlyUpdated,
+      icon: FileText,
+    },
+    {
+      key: "structured",
+      label: "检查结构最多",
+      title: featuredNote?.title || "暂无知识库",
+      meta: featuredNote ? `${countChildren(featuredNote)} 个子节点` : "创建知识库后开始整理",
+      note: featuredNote,
+      icon: Layers3,
+    },
+  ];
+
+  return (
+    <SpotlightCard
+      radius={380}
+      color="rgba(15,23,42,0.08)"
+      className="overflow-hidden rounded-3xl border border-white/80 bg-white/82 shadow-[0_18px_54px_rgba(15,23,42,0.10)] backdrop-blur"
+    >
+      <div className="absolute inset-0 overflow-hidden rounded-3xl">
+        <span className="absolute inset-0 bg-[radial-gradient(circle_at_15%_12%,rgba(15,23,42,0.06),transparent_28rem),linear-gradient(135deg,rgba(255,255,255,0.72),rgba(248,250,252,0.42)_55%,rgba(226,232,240,0.36))]" />
+      </div>
+      <div className="relative grid items-center gap-6 p-5 text-slate-950 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6">
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-500 shadow-sm">
+            <BookOpen size={14} />
+            知识档案室
+          </div>
+          <h2 className="mt-4 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
+            把零散笔记整理成可以复盘的结构。
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+            当前有 {total} 个知识库、{totalChildren} 个子节点。优先维护结构最完整和最近更新的内容，避免资料只堆不复盘。
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-500">
+            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 shadow-sm">根目录 {total}</span>
+            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 shadow-sm">子节点 {totalChildren}</span>
+            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 shadow-sm">
+              {totalChildren > total ? "已有层级结构" : "结构仍需补充"}
+            </span>
+          </div>
+          {total === 0 && (
+            <PrimaryButton type="button" onClick={onCreate} className="mt-5">
+              <Plus size={16} />
+              创建第一个知识库
+            </PrimaryButton>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white/70 p-3 shadow-sm backdrop-blur">
+          <div className="px-2 pb-2 pt-1">
+            <div className="text-xs font-medium text-slate-400">整理优先级</div>
+            <div className="mt-1 text-sm font-semibold text-slate-950">从真正需要处理的内容进入</div>
+          </div>
+          <div className="space-y-2">
+            {priorityItems.map((item) => {
+              const Icon = item.icon;
+              const enabled = Boolean(item.note?.noteId);
+              return (
+                <motion.button
+                  key={item.key}
+                  type="button"
+                  disabled={!enabled}
+                  whileHover={enabled ? { y: -2 } : undefined}
+                  whileTap={enabled ? { scale: 0.98 } : undefined}
+                  onMouseEnter={() => enabled && onPrefetchNote(item.note.noteId)}
+                  onFocus={() => enabled && onPrefetchNote(item.note.noteId)}
+                  onClick={() => enabled && onOpenNote(item.note.noteId)}
+                  className="group flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white/80 p-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-white hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white transition group-hover:rotate-3">
+                    <Icon size={18} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs text-slate-400">{item.label}</span>
+                    <span className="mt-1 block truncate text-sm font-semibold text-slate-950">{item.title}</span>
+                    <span className="mt-0.5 block truncate text-xs text-slate-500">{item.meta}</span>
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </SpotlightCard>
   );
 }
 
