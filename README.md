@@ -1,69 +1,155 @@
 # 课程学习助手 Agent 平台
 
-一个面向课程学习的工作台：把课程资料、学习对话、学习计划、知识库、讨论区和个人资料集中到同一个应用里。前端强调浅色玻璃质感、小面积深色强调和适度动效；后端提供 FastAPI REST 接口和本地/远程数据库支持。
+课程学习助手 Agent 平台是一个面向课程学习与资料整理的 Web 应用。项目将课程管理、资料上传、学习对话、学习计划、知识库和讨论区整合到同一个工作台中，帮助学习者围绕课程内容沉淀资料、拆解任务并持续复盘。
+
+本仓库采用前后端分离架构，适合多人协作开发，也兼容 Codex、Claude Code 等 AI 编程助手参与日常迭代。
+
+## 功能概览
+
+- 用户认证：注册、登录、头像上传、个人资料维护。
+- 学习仪表盘：课程、资料、计划、任务和最近对话的概览入口。
+- 课程管理：课程列表、课程详情、资料上传、资料预览和下载。
+- 课程对话：围绕课程和资料进行学习问答。
+- 学习计划：创建阶段目标、设置截止时间和每日投入，跟踪计划状态。
+- 知识库：维护笔记结构、正文内容、标签、分享和回收站。
+- 讨论区：发布帖子、编辑帖子、评论、点赞、浏览标签和相关内容。
+- 第三方集成：预留语雀、Trilium 等知识工具的连接入口。
 
 ## 技术栈
 
-- 前端：React 18、TypeScript、Vite、Tailwind CSS、React Router、TanStack Query
-- UI 与动效：motion、animejs、lucide-react、Tabler Icons、shadcn 风格组件、React Bits / Magic UI / Aceternity 组件
-- 后端：FastAPI、SQLAlchemy、Pydantic、python-jose
-- 数据库：本地 SQLite，团队/部署环境可切换 PostgreSQL 或 Supabase
-- 文件：上传文件保存在 `server/uploads/`，通过 `/uploads` 访问
+前端：
 
-## 主要功能
+- React 18
+- TypeScript
+- Vite
+- Tailwind CSS
+- React Router
+- TanStack Query
+- motion / animejs
+- shadcn 风格组件、Magic UI、Aceternity、React Bits 等组件
 
-- 登录注册、头像上传、个人资料
-- 仪表盘、课程管理、资料上传/预览/下载
-- 课程对话、学习计划、任务管理
-- 知识库目录、富文本/Markdown 编辑、标签、分享、回收站
-- 讨论区帖子、评论、点赞、标签和相关帖子
-- 语雀与 Trilium 连接入口
+后端：
 
-## 前端体验
+- FastAPI
+- SQLAlchemy
+- Pydantic
+- python-jose
+- python-multipart
+- pypdf
 
-- 主页面使用统一的浅色玻璃背景、卡片阴影和悬停反馈，避免大面积纯黑压住内容。
-- 课程、计划、知识库等页面使用 Carousel、Stack、Folder、Counter、ProgressRing、GooeyInput、AnimatedList、RippleButton 等组件增强交互。
-- 列表卡片支持 hover/focus 预加载详情页，减少进入详情时的等待感。
-- 讨论区使用分页、渐进模糊和动画列表；知识库树保持虚拟列表，避免节点较多时卡顿。
-- 编辑器、弹窗、删除确认、上传入口统一使用轻量动效和清晰的状态反馈。
+数据与存储：
 
-## 快速启动
+- SQLite：本地开发默认可用
+- PostgreSQL / Supabase：团队共享环境或部署环境推荐
+- 上传文件：默认存储在 `server/uploads/`，通过 `/uploads` 对外访问
+
+## 目录结构
+
+```text
+.
+├── client/                 # 前端应用
+│   ├── src/
+│   │   ├── api/            # API 客户端
+│   │   ├── components/     # 通用组件
+│   │   ├── hooks/          # React hooks 与数据请求 hooks
+│   │   ├── pages/          # 页面组件
+│   │   ├── router.tsx      # 前端路由
+│   │   └── pageLoaders.ts  # 路由懒加载与预加载入口
+│   └── vite.config.ts
+├── server/                 # 后端应用
+│   ├── app/
+│   │   ├── routers/        # FastAPI 路由模块
+│   │   ├── services/       # 服务层逻辑
+│   │   ├── config.py       # 应用配置
+│   │   ├── database.py     # 数据库连接与 schema 兼容逻辑
+│   │   ├── models.py       # SQLAlchemy 模型
+│   │   ├── schemas.py      # Pydantic schema
+│   │   └── seed.py         # 初始化数据
+│   ├── tests/              # 后端测试
+│   └── requirements.txt
+├── AGENTS.md               # AI Agent 协作规范
+├── CLAUDE.md               # Claude Code 协作规范
+└── README.md
+```
+
+## 本地开发
+
+### 首次运行
+
+首次运行需要分别安装后端和前端依赖，并初始化环境变量与演示数据。
 
 后端：
 
 ```bash
 cd server
 python -m venv .venv
-.venv/Scripts/activate
-pip install -r requirements.txt
-
-copy .env.example .env
-
-python -m app.seed
-uvicorn main:app --reload --port 8000
 ```
 
-PowerShell 也可以使用：
+激活虚拟环境：
 
-```powershell
+```bash
+# Windows PowerShell
 .\.venv\Scripts\Activate.ps1
+
+# Windows cmd
+.venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
+```
+
+安装依赖、复制配置并初始化数据：
+
+```bash
+pip install -r requirements.txt
+
+# Windows
+copy .env.example .env
+
+# macOS / Linux
+cp .env.example .env
+
+python -m app.seed
 ```
 
 前端：
 
 ```bash
-cd client
+cd ../client
 npm install
+```
+
+### 日常运行
+
+日常开发需要同时启动后端和前端。建议开两个终端窗口分别运行。
+
+终端 1：启动后端
+
+```bash
+cd server
+
+# 如未激活虚拟环境，先执行对应平台的激活命令
+.\.venv\Scripts\Activate.ps1
+
+uvicorn main:app --reload --port 8000
+```
+
+终端 2：启动前端
+
+```bash
+cd client
 npm run dev
 ```
 
-默认地址：
+默认访问地址：
 
 - 前端：http://localhost:5173
 - 后端：http://localhost:8000
-- Swagger：http://localhost:8000/docs
+- API 文档：http://localhost:8000/docs
 
-演示账号：
+### 演示账号
+
+运行 `python -m app.seed` 后可使用默认演示账号登录：
 
 ```text
 用户名：demo
@@ -72,25 +158,26 @@ npm run dev
 
 ## 环境变量
 
-后端读取 `server/.env`，从 `server/.env.example` 复制即可。
+后端从 `server/.env` 读取配置。首次启动时复制 `server/.env.example` 后按本地环境调整。
 
-本地 SQLite：
+常用配置：
 
 ```env
 DATABASE_URL=sqlite:///./app.db
 SECRET_KEY=change-me-in-production
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
-LLM_PROVIDER=mock
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-your-deepseek-api-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+DEEPSEEK_MODEL=deepseek-v4-pro
 UPLOAD_DIR=uploads
 ```
 
-远程 PostgreSQL/Supabase：
+数据库说明：
 
-```env
-DATABASE_URL=postgresql://...
-```
-
-不要提交 `.env`、数据库文件、上传文件、构建产物或密钥。
+- 本地开发可使用 `sqlite:///./app.db`。
+- 团队共享或部署环境推荐使用 PostgreSQL / Supabase 连接串。
+- 不要提交 `.env`、数据库文件、上传目录或任何密钥。
 
 ## 常用命令
 
@@ -98,9 +185,10 @@ DATABASE_URL=postgresql://...
 
 ```bash
 cd client
-npm run dev
-npm run build
-npm run analyze
+npm run dev       # 启动开发服务器
+npm run build     # TypeScript 与生产构建检查
+npm run analyze   # 构建并生成包体积分析
+npm run preview   # 预览生产构建
 ```
 
 后端：
@@ -112,29 +200,93 @@ python -m app.seed
 pytest
 ```
 
-## 开发约定
+## API 模块
 
-- 前端 API 请求放在 `client/src/api/client.ts`。
-- TanStack Query hooks 放在 `client/src/hooks/api.ts`。
-- 页面动态导入统一放在 `client/src/pageLoaders.ts`，需要 hover/focus 预加载时复用这些 loader。
-- 页面结构优先复用 `client/src/components/PageScaffold.tsx`。
-- 加载态、错误边界、Toast、骨架屏、查询缓存和本地草稿逻辑不要随意绕开。
-- 大列表或树形内容优先使用虚拟列表。
-- UI 文案默认使用中文。
-- 后端路由在 `server/app/routers/`，模型在 `server/app/models.py`，schema 在 `server/app/schemas.py`。
-- 修改前后端契约时，两边必须同步更新。
+后端接口统一以 `/api` 为前缀，主要模块包括：
 
-## 验证要求
+- `/api/auth`
+- `/api/dashboard`
+- `/api/courses`
+- `/api/materials`
+- `/api/chat`
+- `/api/plans`
+- `/api/tasks`
+- `/api/posts`
+- `/api/comments`
+- `/api/tags`
+- `/api/yuque`
+- `/api/trilium`
 
-- 前端改动：`cd client && npm run build`
-- 后端接口、模型或服务改动：`cd server && pytest`
-- 路由、懒加载、预加载、缓存或页面入口交互改动后，还要在浏览器里从侧边导航和页面内链接各切换一次，确认没有空白页、错误边界或明显重复请求。
+完整接口以运行时 Swagger 文档为准：http://localhost:8000/docs
 
-## 协作
+## 开发规范
 
-本仓库同时供人类开发者和 AI 编程助手协作。开始任务前阅读：
+前端：
+
+- API 请求集中放在 `client/src/api/client.ts`。
+- 可复用数据请求逻辑放在 `client/src/hooks/api.ts`。
+- 页面路由和懒加载入口维护在 `client/src/router.tsx` 与 `client/src/pageLoaders.ts`。
+- 加载态优先复用 `client/src/components/skeleton/`。
+- 异步数据优先通过 TanStack Query 管理，变更后使用 query invalidation 更新缓存。
+- 页面文案默认使用中文。
+
+后端：
+
+- 路由模块放在 `server/app/routers/`。
+- SQLAlchemy 模型放在 `server/app/models.py`。
+- Pydantic schema 放在 `server/app/schemas.py`。
+- 通用配置放在 `server/app/config.py`。
+- 新增或修改接口时保持 REST 语义清晰，并同步更新前端调用。
+- 涉及用户数据的接口需要校验当前用户权限。
+
+## 协作流程
+
+多人协作时请遵守以下约定：
+
+1. 开始前先拉取最新代码，并确认当前工作区状态。
+2. 修改前阅读相关文件，不覆盖他人未提交改动。
+3. 保持改动范围清晰，避免顺手重构无关模块。
+4. 前后端契约发生变化时，前端、后端和文档需要同步更新。
+5. 提交前运行与改动相关的最小验证命令。
+6. 不提交 `.env`、本地数据库、上传文件、构建产物、缓存目录或密钥。
+
+AI 编程助手参与开发时还应阅读：
 
 - `AGENTS.md`
 - `CLAUDE.md`
 
-核心原则：不覆盖他人未提交改动，不提交本地私有文件，保持改动范围清晰，完成后说明改了什么和验证了什么。
+## 质量检查
+
+推荐在提交前运行：
+
+```bash
+cd client
+npm run build
+```
+
+涉及后端模型、接口、服务或数据库逻辑时运行：
+
+```bash
+cd server
+pytest
+```
+
+涉及路由、导航、懒加载、缓存或页面入口时，还需要在浏览器中手动检查主要页面是否能正常进入、刷新和返回。
+
+## Git 忽略建议
+
+以下内容不应进入版本库：
+
+- `.env`
+- `server/app.db`
+- `server/uploads/`
+- `client/dist/`
+- `node_modules/`
+- Python 虚拟环境和缓存目录
+- 日志文件和本地编辑器缓存
+
+具体规则以 `.gitignore` 为准。
+
+## License
+
+当前仓库未声明开源许可证。对外发布或开源前，请先补充许可证和版权说明。
