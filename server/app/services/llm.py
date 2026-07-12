@@ -21,6 +21,11 @@ def _build_messages(history: List[ChatMessage], context: List[Snippet] | None):
             for s in context[:5]
         )
         system_parts.append(f"以下是课程相关资料，请优先参考：\n{refs}")
+        system_parts.append(
+            "重要：回答中引用课程资料时，必须标注来源，格式为「📚 参考：文件名」。"
+            "如果回答内容来自多个资料，请分别标注。"
+            "如果没有参考任何资料，请在回答末尾说明「⚠️ 未找到相关课程资料」。"
+        )
 
     messages = [{"role": "system", "content": "\n\n".join(system_parts)}]
     for m in history:
@@ -86,6 +91,62 @@ class LLMClient:
             ]
             return self._call_deepseek(messages, temperature=0.5, max_tokens=300)
         return f"[建议] 1. 建议增加更多示例；2. 可考虑添加目录结构；3. 重点概念可以用粗体突出。"
+
+    def generate_summary(self, course_name: str, materials: list[dict]) -> str:
+        """根据课程所有资料生成知识点复习提纲。"""
+        if self.provider == "deepseek":
+            material_text = "\n\n---\n\n".join(
+                f"📄 {m['filename']}:\n{m['text'][:1500]}" for m in materials[:10] if m.get("text")
+            )
+            if not material_text:
+                return "该课程暂无文字类资料，无法生成提纲。"
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "你是课程学习助手，请根据以下课程资料，生成一份结构化的复习提纲。要求：\n"
+                        "1. 使用 Markdown 格式，包含多级标题\n"
+                        "2. 提取核心知识点（概念、公式、要点）\n"
+                        "3. 标注每个知识点来源于哪个文件\n"
+                        "4. 按知识体系组织，不要按文件罗列\n"
+                        "5. 最后附上重点复习建议"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"课程：{course_name}\n\n{material_text}\n\n请生成复习提纲。",
+                },
+            ]
+            return self._call_deepseek(messages, temperature=0.4, max_tokens=4096)
+        return f"[mock] {course_name} 复习提纲：待接入大模型后生成。"
+
+    def generate_tasks(self, goal: str, deadline: str, daily_minutes: int) -> str:
+        """根据学习目标、截止时间和每日时间生成分阶段任务列表。"""
+        if self.provider == "deepseek":
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "你是学习规划助手。根据用户的学习目标、截止日期和每日可用时间，"
+                        "将大目标拆解为有序的阶段任务。\n"
+                        "返回格式要求（严格 JSON）：\n"
+                        '{"tasks": [{"title": "任务名", "days_from_start": 1}, ...]}\n'
+                        "任务按时间顺序排列，均匀分布在截止日期之前。"
+                        "每个任务的 title 要具体可执行，不超过 30 字。"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"学习目标：{goal}\n"
+                        f"截止日期：{deadline}\n"
+                        f"每日可用时间：{daily_minutes} 分钟\n"
+                        f"请拆解为每日待办任务。"
+                    ),
+                },
+            ]
+            return self._call_deepseek(messages, temperature=0.6, max_tokens=2048)
+        return '{"tasks": [{"title": "整理学习资料", "days_from_start": 1}, {"title": "完成第一章复习", "days_from_start": 2}, {"title": "做模拟题并复盘", "days_from_start": 3}]}'
 
 
 llm = LLMClient()

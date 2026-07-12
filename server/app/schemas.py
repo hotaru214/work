@@ -48,6 +48,8 @@ class MaterialOut(BaseModel):
     course_id: int
     filename: str
     type: str
+    category: str = "other"
+    due_date: Optional[datetime] = None
     uploaded_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -201,6 +203,7 @@ class DashboardOut(BaseModel):
     upcoming_tasks: list[TaskOut] = []
     active_plans: list[PlanOut] = []
     recent_sessions: list[ChatSessionOut] = []
+    upcoming_assignments: list[MaterialOut] = []
 
 class KBNoteCreate(BaseModel):
     parent_note_id: str
@@ -208,12 +211,14 @@ class KBNoteCreate(BaseModel):
     content: str = ""
     type: str = "text"
     mime: str = "text/html"
+    course_id: Optional[int] = None
 
 class KBNoteUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     type: Optional[str] = None
     mime: Optional[str] = None
+    course_id: Optional[int] = None
     is_deleted: Optional[bool] = None
 
 class KBAttributeCreate(BaseModel):
@@ -227,6 +232,7 @@ class KBNoteOut(BaseModel):
     title: str
     type: str
     mime: str
+    course_id: Optional[int] = None
     is_protected: bool = False
     is_deleted: bool = False
     content: str = ""

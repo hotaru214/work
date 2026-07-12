@@ -41,6 +41,26 @@ def ensure_schema() -> None:
             kb_cols = {c["name"] for c in inspector.get_columns("kb_notes")}
             if "share_token" not in kb_cols:
                 conn.execute(text("ALTER TABLE kb_notes ADD COLUMN share_token VARCHAR(64)"))
+            if "course_id" not in kb_cols:
+                conn.execute(text("ALTER TABLE kb_notes ADD COLUMN course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL"))
+
+        if "materials" in inspector.get_table_names():
+            mat_cols = {c["name"] for c in inspector.get_columns("materials")}
+            if "category" not in mat_cols:
+                conn.execute(text("ALTER TABLE materials ADD COLUMN category VARCHAR(32) DEFAULT 'other'"))
+            if "due_date" not in mat_cols:
+                conn.execute(text("ALTER TABLE materials ADD COLUMN due_date TIMESTAMP"))
+
+        if "post_votes" not in inspector.get_table_names():
+            conn.execute(text(
+                "CREATE TABLE post_votes ("
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,"
+                "  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+                "  value INTEGER DEFAULT 1,"
+                "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            ))
 
 
 def get_db():

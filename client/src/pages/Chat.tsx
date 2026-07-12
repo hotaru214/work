@@ -4,18 +4,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUpRight,
+  BookOpen,
   Bot,
   Clock3,
   Lightbulb,
   MessageCircle,
-  PenLine,
   Plus,
   SendHorizonal,
   Sparkles,
   UsersRound,
 } from "lucide-react";
 import { api } from "../api/client";
-import { usePrefetchPost, useSessions } from "../hooks/api";
+import { mdToHtml } from "../utils/markdown";
+import { useCourses, useKbRoots, usePrefetchPost, useSessions } from "../hooks/api";
 import { EmptyState, IconBadge, PrimaryButton, SecondaryButton, Surface } from "../components/PageScaffold";
 import MarkdownRenderer from "../components/MarkdownRenderer";
 import { useTypewriter } from "../hooks/useTypewriter";
@@ -33,6 +34,9 @@ export default function Chat() {
   const queryClient = useQueryClient();
   const [sid, setSid] = useState<number | null>(sessionId ? Number(sessionId) : null);
   const { data: sessions = [] } = useSessions();
+  const { data: courses = [] } = useCourses();
+  const { data: kbRoots = [] } = useKbRoots();
+  const [publishingToKb, setPublishingToKb] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -104,6 +108,47 @@ export default function Chat() {
   }
 
   const activeSessionTitle = sid ? activeTitle(sessions, sid) : "选择或创建一个对话";
+  const activeSession = sid ? sessions.find(s => s.id === sid) : null;
+  const activeCourseId: number | null = activeSession?.course_id ?? null;  const [updatingCourse, setUpdatingCourse] = useState(false);
+
+  async function handleChangeCourse(courseId: number | null) {
+    if (!sid || updatingCourse) return;
+    setUpdatingCourse(true);
+    try {
+      await api.updateSession(sid, courseId);
+      queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
+    } finally {
+      setUpdatingCourse(false);
+    }
+  }
+
+  async function publishToKb() {
+    if (!sid || !activeCourseId || publishingToKb || messages.length === 0) return;
+    setPublishingToKb(true);
+    try {
+      // 找该课程关联的知识库根节点
+      const root = kbRoots.find((r: any) => r.courseId === activeCourseId);
+      if (!root) {
+        alert("该课程还没有关联的知识库，请先在知识库页面创建一个并关联此课程。");
+        return;
+      }
+      // 格式化对话，转为 HTML 存入知识库
+      const dateStr = new Date().toLocaleDateString("zh-CN");
+      const title = `${activeSessionTitle} — ${dateStr}`;
+      const mdContent = messages.map((m: any) => {
+        const role = m.role === "user" ? "**我**" : "**Agent**";
+        return `${role}：\n\n${m.content}`;
+      }).join("\n\n---\n\n");
+      const content = mdToHtml(mdContent);
+      const result = await api.kb.createNote(root.noteId, title, content, "text", "text/html");
+      queryClient.invalidateQueries({ queryKey: ["kb-tree", root.noteId] });
+      navigate(`/kb/${root.noteId}/doc/${result.note.noteId}`);
+    } catch (e: any) {
+      alert(e.message || "发布失败");
+    } finally {
+      setPublishingToKb(false);
+    }
+  }
 
   return (
     <div className="relative grid h-full min-h-0 grid-cols-1 overflow-hidden bg-slate-50 text-slate-950 lg:grid-cols-[292px_minmax(0,1fr)] xl:grid-cols-[316px_minmax(0,1fr)]">
@@ -170,17 +215,28 @@ export default function Chat() {
                   <span>Shift + Enter 换行</span>
                 </div>
               </div>
+              {sid && courses.length > 0 && (
+                <select
+                  value={activeCourseId ?? ""}
+                  disabled={updatingCourse}
+                  onChange={(e) => handleChangeCourse(e.target.value ? Number(e.target.value) : null)}
+                  className="ml-2 shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 outline-none transition focus:border-slate-400 disabled:opacity-50"
+                >
+                  <option value="">通用对话</option>
+                  {courses.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
-            {sid && (
+            {sid && messages.length > 0 && (
               <SecondaryButton
-                onMouseEnter={() => preloadPage("postEditor")}
-                onFocus={() => preloadPage("postEditor")}
-                onClick={() => navigate(`/forum/new?session_id=${sid}`)}
+                onClick={publishToKb}
+                disabled={publishingToKb}
                 className="group"
               >
-                <PenLine size={16} />
-                发布到讨论区
-                <ArrowUpRight size={14} className="transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                <BookOpen size={16} />
+                {publishingToKb ? "发布中…" : "保存到知识库"}
               </SecondaryButton>
             )}
           </header>

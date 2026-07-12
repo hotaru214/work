@@ -1,9 +1,10 @@
 import mimetypes
 import os
 import shutil
+from datetime import datetime
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -30,15 +31,37 @@ def list_for_course(course_id: int, user: User = Depends(get_current_user), db: 
 
 
 @router.post("/course/{course_id}", response_model=MaterialOut, status_code=status.HTTP_201_CREATED)
-def upload(course_id: int, file: UploadFile = File(...), type: str = "other",
-           user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def upload(
+    course_id: int,
+    file: UploadFile = File(...),
+    type: str = "other",
+    category: str = Form("other"),
+    due_date: str | None = Form(None),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     course = _ensure_owned(course_id, user, db)
     course_dir = os.path.join(settings.UPLOAD_DIR, f"course_{course.id}")
     os.makedirs(course_dir, exist_ok=True)
     dest = os.path.join(course_dir, file.filename or "upload.bin")
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
-    material = Material(course_id=course.id, filename=file.filename or "upload.bin", type=type, content_path=dest)
+
+    parsed_due: datetime | None = None
+    if due_date:
+        try:
+            parsed_due = datetime.fromisoformat(due_date)
+        except ValueError:
+            pass
+
+    material = Material(
+        course_id=course.id,
+        filename=file.filename or "upload.bin",
+        type=type,
+        category=category,
+        due_date=parsed_due,
+        content_path=dest,
+    )
     db.add(material)
     db.commit()
     db.refresh(material)
@@ -58,13 +81,13 @@ def download_material(material_id: int, user: User = Depends(get_current_user), 
         media_type = "application/octet-stream"
 
     encoded_filename = quote(m.filename)
+    # RFC 5987 编码 + 兜底 ASCII filename，兼容所有浏览器
+    disposition = f"inline; filename*=UTF-8''{encoded_filename}"
 
     return FileResponse(
         m.content_path,
         media_type=media_type,
-        headers={
-            "Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}",
-        },
+        headers={"Content-Disposition": disposition},
     )
 
 

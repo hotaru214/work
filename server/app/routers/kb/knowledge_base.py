@@ -28,6 +28,7 @@ def _note_to_out(note: KBNote, children: list = None) -> dict:
         "title": note.title,
         "type": note.type,
         "mime": note.mime,
+        "courseId": note.course_id,
         "isProtected": note.is_protected,
         "isDeleted": note.is_deleted,
         "shareToken": note.share_token,
@@ -137,6 +138,16 @@ def create_note(body: KBNoteCreate, user: User = Depends(get_current_user), db: 
     while db.query(KBNote).filter(KBNote.note_id == note_id).first():
         note_id = _generate_id()
 
+    # 继承父笔记的 course_id（如果未显式指定）
+    course_id = body.course_id
+    if course_id is None and body.parent_note_id != "__root__":
+        parent = db.query(KBNote).filter(
+            KBNote.note_id == body.parent_note_id,
+            KBNote.user_id == user.id,
+        ).first()
+        if parent and parent.course_id is not None:
+            course_id = parent.course_id
+
     note = KBNote(
         note_id=note_id,
         user_id=user.id,
@@ -144,6 +155,7 @@ def create_note(body: KBNoteCreate, user: User = Depends(get_current_user), db: 
         type=body.type,
         mime=body.mime,
         content=body.content,
+        course_id=course_id,
     )
     db.add(note)
     db.flush()
@@ -210,6 +222,7 @@ def update_note_content(
         note.type = body.type
     if body.mime is not None:
         note.mime = body.mime
+    note.course_id = body.course_id
 
     db.commit()
     return {"ok": True, "note": _note_to_out(note, [])}

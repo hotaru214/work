@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import ChatSession, Course, Material, Plan, Task, User
-from app.schemas import ChatSessionOut, DashboardOut, PlanOut, TaskOut
+from app.schemas import ChatSessionOut, DashboardOut, MaterialOut, PlanOut, TaskOut
 from app.security import get_current_user
 
 router = APIRouter()
@@ -57,6 +57,20 @@ def get_dashboard(
         .all()
     )
 
+    upcoming_assignments = (
+        db.query(Material)
+        .join(Course)
+        .filter(
+            Course.user_id == user.id,
+            Material.category == "assignment",
+            Material.due_date.isnot(None),
+            Material.due_date >= today,
+        )
+        .order_by(Material.due_date.asc())
+        .limit(10)
+        .all()
+    )
+
     return DashboardOut(
         total_tasks=total_tasks,
         completed_tasks=completed_tasks,
@@ -68,4 +82,5 @@ def get_dashboard(
         upcoming_tasks=[TaskOut.model_validate(t) for t in upcoming_tasks],
         active_plans=[PlanOut.model_validate(p) for p in active_plans],
         recent_sessions=[ChatSessionOut.model_validate(s) for s in recent_sessions],
+        upcoming_assignments=[MaterialOut.model_validate(m) for m in upcoming_assignments],
     )

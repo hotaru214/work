@@ -1,7 +1,10 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarClock, Clock3, Plus, Route, Search, Trash2, X } from "lucide-react";
+import { CalendarClock, Clock3, Plus, Route, Search, Sparkles, Trash2, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { api } from "../api/client";
 import { useCreatePlan, useDeletePlan, usePlans } from "../hooks/api";
+import { useMutationToast } from "../components/ui/toast";
 import { GooeyInput } from "../components/ui/gooey-input";
 import ProgressRing from "../components/ProgressRing";
 import SpotlightCard from "../components/SpotlightCard";
@@ -31,11 +34,14 @@ export default function Plan() {
   const { data: plans = [], isLoading: loading, error } = usePlans();
   const createPlanMut = useCreatePlan();
   const deletePlanMut = useDeletePlan();
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
   const [goal, setGoal] = useState("");
   const [deadline, setDeadline] = useState("");
   const [daily, setDaily] = useState(60);
   const [createOpen, setCreateOpen] = useState(false);
   const [deletingPlan, setDeletingPlan] = useState<any | null>(null);
+  const [generatingPlanId, setGeneratingPlanId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [deadlineFilter, setDeadlineFilter] = useState<"all" | "scheduled" | "week" | "unscheduled">("all");
 
@@ -62,6 +68,21 @@ export default function Plan() {
       setDeletingPlan(null);
     } catch {
       // Mutation error is surfaced through deletePlanMut.error below.
+    }
+  }
+
+  async function handleGenerateTasks(planId: number) {
+    if (generatingPlanId === planId) return;
+    setGeneratingPlanId(planId);
+    try {
+      const result = await api.generateTasks(planId);
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success(`已生成 ${result.tasks.length} 个任务`);
+    } catch (e: any) {
+      toast.error(e.message || "生成失败");
+    } finally {
+      setGeneratingPlanId(null);
     }
   }
 
@@ -251,9 +272,19 @@ export default function Plan() {
                               </div>
                               <h3 className="line-clamp-2 text-base font-semibold leading-6 text-slate-950">{plan.goal}</h3>
                             </div>
-                            <SecondaryButton className="h-9 px-3 text-rose-600 hover:border-rose-200 hover:bg-rose-50" onClick={() => setDeletingPlan(plan)}>
-                              <Trash2 size={15} />
-                            </SecondaryButton>
+                            <div className="flex items-center gap-2">
+                              <SecondaryButton
+                                className="h-9 px-3 text-violet-600 hover:border-violet-200 hover:bg-violet-50"
+                                onClick={() => handleGenerateTasks(plan.id)}
+                                disabled={generatingPlanId === plan.id}
+                              >
+                                <Sparkles size={15} />
+                                {generatingPlanId === plan.id ? "生成中…" : "生成任务"}
+                              </SecondaryButton>
+                              <SecondaryButton className="h-9 px-3 text-rose-600 hover:border-rose-200 hover:bg-rose-50" onClick={() => setDeletingPlan(plan)}>
+                                <Trash2 size={15} />
+                              </SecondaryButton>
+                            </div>
                           </div>
                           <div className="mt-5 grid grid-cols-2 gap-3 text-xs">
                             <div className="rounded-lg bg-slate-50 p-3">

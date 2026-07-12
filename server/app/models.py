@@ -47,6 +47,8 @@ class Material(Base):
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"))
     filename: Mapped[str] = mapped_column(String(255))
     type: Mapped[str] = mapped_column(String(32), default="other")
+    category: Mapped[str] = mapped_column(String(32), default="other")  # other / assignment / lecture / lab
+    due_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     content_path: Mapped[str] = mapped_column(String(512))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -200,6 +202,7 @@ class KBNote(Base):
     title: Mapped[str] = mapped_column(String(255))
     type: Mapped[str] = mapped_column(String(32), default="text")
     mime: Mapped[str] = mapped_column(String(64), default="text/html")
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id", ondelete="SET NULL"), nullable=True)
     content: Mapped[str] = mapped_column(Text, default="")
     is_protected: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)

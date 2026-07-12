@@ -31,6 +31,22 @@ def create_session(course_id: int | None = None, title: str = "新对话",
     return session
 
 
+@router.patch("/sessions/{session_id}", response_model=ChatSessionOut)
+def update_session(session_id: int, course_id: int | None = None,
+                   user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="session not found")
+    if course_id is not None:
+        course = db.query(Course).filter(Course.id == course_id, Course.user_id == user.id).first()
+        if not course:
+            raise HTTPException(status_code=404, detail="course not found")
+    session.course_id = course_id
+    db.commit()
+    db.refresh(session)
+    return session
+
+
 @router.get("/sessions/{session_id}/messages", response_model=list[ChatMessageOut])
 def list_messages(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user.id).first()

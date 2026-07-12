@@ -46,6 +46,7 @@ import {
 } from "../components/PageScaffold";
 import { preloadPage } from "../pageLoaders";
 import SpotlightCard from "../components/SpotlightCard";
+import MarkdownRenderer from "../components/MarkdownRenderer";
 
 function getFileType(filename: string): "image" | "pdf" | "video" | "audio" | "text" | "other" {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
@@ -79,6 +80,11 @@ export default function CourseDetail() {
   const [materialTypeFilter, setMaterialTypeFilter] = useState<FileType | "all">("all");
   const [startingChat, setStartingChat] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadCategory, setUploadCategory] = useState("other");
+  const [uploadDueDate, setUploadDueDate] = useState("");
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [summaryText, setSummaryText] = useState("");
+  const [showSummary, setShowSummary] = useState(false);
 
   async function onUpload(e: React.FormEvent) {
     e.preventDefault();
@@ -86,8 +92,11 @@ export default function CourseDetail() {
     if (!file) return;
     toast.start("上传中...");
     try {
-      await api.uploadMaterial(courseId, file, file.name.split(".").pop() || "other");
+      const ext = file.name.split(".").pop() || "other";
+      await api.uploadMaterial(courseId, file, ext, uploadCategory, uploadDueDate || null);
       setUploadFile(null);
+      setUploadCategory("other");
+      setUploadDueDate("");
       setUploadOpen(false);
       queryClient.invalidateQueries({ queryKey: ["materials", courseId] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -105,6 +114,20 @@ export default function CourseDetail() {
       navigate(`/chat/${session.id}`);
     } finally {
       setStartingChat(false);
+    }
+  }
+
+  async function handleGenerateSummary() {
+    if (generatingSummary || !courseId) return;
+    setGeneratingSummary(true);
+    try {
+      const result = await api.generateSummary(courseId);
+      setSummaryText(result.summary);
+      setShowSummary(true);
+    } catch (e: any) {
+      toast.error(e.message || "生成失败");
+    } finally {
+      setGeneratingSummary(false);
     }
   }
 
@@ -217,6 +240,13 @@ export default function CourseDetail() {
             <MessageCircle size={16} />
             课程讨论区
           </SecondaryButton>
+          <SecondaryButton
+            onClick={handleGenerateSummary}
+            disabled={generatingSummary}
+          >
+            <Sparkles size={16} />
+            {generatingSummary ? "生成中…" : "生成复习提纲"}
+          </SecondaryButton>
           <PrimaryButton
             onMouseEnter={() => preloadPage("chat")}
             onFocus={() => preloadPage("chat")}
@@ -275,6 +305,31 @@ export default function CourseDetail() {
                 <form onSubmit={onUpload} className="space-y-4">
                   <div className="overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
                     <FileUpload onChange={(files) => setUploadFile(files[0] ?? null)} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-medium text-slate-500">分类</span>
+                      <select
+                        value={uploadCategory}
+                        onChange={(e) => setUploadCategory(e.target.value)}
+                        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400"
+                      >
+                        <option value="other">其他资料</option>
+                        <option value="lecture">课件讲义</option>
+                        <option value="assignment">课程作业</option>
+                        <option value="lab">实验指导</option>
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-medium text-slate-500">截止日期</span>
+                      <input
+                        type="date"
+                        value={uploadDueDate}
+                        onChange={(e) => setUploadDueDate(e.target.value)}
+                        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400"
+                        placeholder="作业/实验截止日期"
+                      />
+                    </label>
                   </div>
                   <DialogFooter className="gap-3 pt-1 sm:space-x-0">
                     <SecondaryButton type="button" onClick={() => setUploadOpen(false)}>取消</SecondaryButton>
@@ -546,6 +601,46 @@ export default function CourseDetail() {
                     <Trash2 size={16} />
                     {deleteMaterialMut.isPending ? "删除中..." : "删除"}
                   </PrimaryButton>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 复习提纲弹窗 */}
+      <AnimatePresence>
+        {showSummary && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowSummary(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 20, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.97 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-950">复习提纲</h2>
+                  <p className="mt-0.5 text-sm text-slate-500">AI 根据课程资料自动生成</p>
+                </div>
+                <button
+                  onClick={() => setShowSummary(false)}
+                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto p-6">
+                <div className="md-content">
+                  <MarkdownRenderer content={summaryText} variant="agent" />
                 </div>
               </div>
             </motion.div>

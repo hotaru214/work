@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { api } from "../../api/client";
@@ -15,7 +16,7 @@ import {
 } from "../../components/ui/dialog";
 import { useMutationToast } from "../../components/ui/toast";
 import { useAutosaveDraft } from "../../hooks/useAutosaveDraft";
-import { useKbNote, useKbTree, usePrefetchKbNote, useTags } from "../../hooks/api";
+import { useCourses, useKbNote, useKbTree, usePrefetchKbNote, useTags } from "../../hooks/api";
 import { useQueryClient } from "@tanstack/react-query";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
 import {
@@ -61,6 +62,35 @@ const CREATE_OPTIONS = [
 const FONT_SIZES = ["12","14","16","18","20","24","28","32","36","48","64"];
 const SAVE_DELAY = 2000;
 
+/** 通过 Portal 渲染到 body，避开祖先 overflow 裁剪 */
+function ToolbarPopover({
+  show,
+  triggerRef,
+  children,
+}: {
+  show: boolean;
+  triggerRef: React.RefObject<HTMLElement | null>;
+  children: React.ReactNode;
+}) {
+  const rectRef = useRef<DOMRect | null>(null);
+  if (show && triggerRef.current) {
+    rectRef.current = triggerRef.current.getBoundingClientRect();
+  }
+  const rect = rectRef.current;
+  return createPortal(
+    <div
+      style={
+        rect
+          ? { position: "fixed", top: rect.bottom + 8, left: rect.left, zIndex: 9999 }
+          : { display: "none" }
+      }
+    >
+      <AnimatePresence>{show && children}</AnimatePresence>
+    </div>,
+    document.body,
+  );
+}
+
 export default function KBDetail() {
   // noteId = current book/container, docId = document being edited (optional)
   const { noteId: notebookId, docId } = useParams();
@@ -77,10 +107,17 @@ export default function KBDetail() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
+  const headingBtnRef = useRef<HTMLButtonElement>(null);
+  const fontSizeBtnRef = useRef<HTMLButtonElement>(null);
+  const colorBtnRef = useRef<HTMLButtonElement>(null);
+  const bgColorBtnRef = useRef<HTMLButtonElement>(null);
 
   const { data: note, isLoading: loading } = useKbNote(activeNoteId);
   const { data: tree = [] } = useKbTree(notebookId);
   const { data: allTags = [] } = useTags();
+  const { data: courses = [] } = useCourses();
+  const [courseId, setCourseId] = useState<number | null>(null);
+  const [editingCourse, setEditingCourse] = useState(false);
   const isBook = note?.type === "book" && !currentDocId;
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
@@ -123,6 +160,8 @@ export default function KBDetail() {
   activeNoteIdRef.current = activeNoteId;
   const editorModeRef = useRef(editorMode);
   editorModeRef.current = editorMode;
+  const courseIdRef = useRef(courseId);
+  courseIdRef.current = courseId;
 
   useEffect(() => {
     // Clear any pending save when navigating to a different note
@@ -144,6 +183,7 @@ export default function KBDetail() {
     const nextContent = saved?.content ?? note.content ?? "";
     setContent(nextContent);
     setMdText(saved?.mdText ?? htmlToMd(nextContent));
+    setCourseId(note.courseId ?? null);
     if (saved?.editorMode) setEditorMode(saved.editorMode);
   }, [note?.noteId]);
   
@@ -219,7 +259,7 @@ export default function KBDetail() {
       );
       setSaveStatus("保存中...");
       try {
-        const data: any = { title: currentTitle };
+        const data: any = { title: currentTitle, course_id: courseIdRef.current };
         if (htmlContent !== undefined) data.content = htmlContent;
         await api.kb.updateContent(currentId, data);
         if (htmlContent !== undefined) setContent(htmlContent);
@@ -560,8 +600,8 @@ export default function KBDetail() {
         </div>
       </div>
 
-      {/* Main content area */}
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+      {/* Main content area — overflow-hidden 移到子层，否则裁剪工具栏下拉菜单 */}
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col bg-transparent">
         {isBook ? (
           <div className="flex flex-1 items-center justify-center p-8 text-slate-400">
             <motion.div
@@ -611,93 +651,85 @@ export default function KBDetail() {
               {/* 下拉菜单触发器（必须在 overflow 外层，否则 absolute 面板被裁剪） */}
               <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
               <div className="relative shrink-0">
-                <button onClick={() => { setShowHeading(prev => !prev); setShowFontSize(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn" title="标题"><Type size={14} /></button>
-                <AnimatePresence>
-                  {showHeading && (
-                    <motion.div
-                      className="absolute left-0 top-full z-50 mt-2 min-w-[112px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                    >
-                      {[
-                        ["<h1>", "标题 1"],
-                        ["<h2>", "标题 2"],
-                        ["<h3>", "标题 3"],
-                        ["<h4>", "标题 4"],
-                        ["<p>", "正文"],
-                      ].map(([tag, label]) => (
-                        <button key={tag} onClick={() => { execCmd("formatBlock", tag); setShowHeading(false); }} className="block w-full px-4 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
-                          {label}
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <button ref={headingBtnRef} onClick={() => { setShowHeading(prev => !prev); setShowFontSize(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn" title="标题"><Type size={14} /></button>
+                <ToolbarPopover show={showHeading} triggerRef={headingBtnRef}>
+                  <motion.div
+                    className="min-w-[112px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    {[
+                      ["<h1>", "标题 1"],
+                      ["<h2>", "标题 2"],
+                      ["<h3>", "标题 3"],
+                      ["<h4>", "标题 4"],
+                      ["<p>", "正文"],
+                    ].map(([tag, label]) => (
+                      <button key={tag} onClick={() => { execCmd("formatBlock", tag); setShowHeading(false); }} className="block w-full px-4 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        {label}
+                      </button>
+                    ))}
+                  </motion.div>
+                </ToolbarPopover>
               </div>
               <div className="relative shrink-0">
-                <button onClick={() => { saveEditorSelection(); setShowFontSize(prev => !prev); setShowHeading(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn text-[10px]" title="字号">Aa</button>
-                <AnimatePresence>
-                  {showFontSize && (
-                    <motion.div
-                      className="absolute left-0 top-full z-50 mt-2 max-h-44 min-w-[82px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                    >
-                      {FONT_SIZES.map((s) => (
-                        <button key={s} onClick={() => { handleFontSize(s); setShowFontSize(false); }}
-                          className="block w-full px-3 py-1.5 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">{s}px</button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <button ref={fontSizeBtnRef} onClick={() => { saveEditorSelection(); setShowFontSize(prev => !prev); setShowHeading(false); setShowColor(false); setShowBgColor(false); }} className="tb-btn text-[10px]" title="字号">Aa</button>
+                <ToolbarPopover show={showFontSize} triggerRef={fontSizeBtnRef}>
+                  <motion.div
+                    className="max-h-44 min-w-[82px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    {FONT_SIZES.map((s) => (
+                      <button key={s} onClick={() => { handleFontSize(s); setShowFontSize(false); }}
+                        className="block w-full px-3 py-1.5 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">{s}px</button>
+                    ))}
+                  </motion.div>
+                </ToolbarPopover>
               </div>
               <div className="relative shrink-0">
-                <button onClick={() => { saveEditorSelection(); setShowColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowBgColor(false); }} className="tb-btn" title="文字颜色">
+                <button ref={colorBtnRef} onClick={() => { saveEditorSelection(); setShowColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowBgColor(false); }} className="tb-btn" title="文字颜色">
                   <Type size={14} />
                 </button>
-                <AnimatePresence>
-                  {showColor && (
-                    <motion.div
-                      className="absolute left-0 top-full z-50 mt-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                    >
-                      <div className="grid grid-cols-8 gap-6">
-                        {["#000","#434343","#666","#999","#b7b7b7","#ccc","#d9d9d9","#fff","#e53e3e","#dd6b20","#d69e2e","#38a169","#319795","#3182ce","#5a67d8","#805ad5","#ffb3b3","#ffd699","#ffecb3","#b3ffcc","#b3ecff","#b3c2ff","#d4b3ff","#ffb3ec"].map(c => (
-                          <button key={c} onClick={() => { handleColor(c); setShowColor(false); }} className="h-6 w-6 rounded-md border border-slate-200 transition hover:scale-110 hover:shadow-sm" style={{backgroundColor:c}} title={c}/>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <ToolbarPopover show={showColor} triggerRef={colorBtnRef}>
+                  <motion.div
+                    className="rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    <div className="grid grid-cols-8 gap-6">
+                      {["#000","#434343","#666","#999","#b7b7b7","#ccc","#d9d9d9","#fff","#e53e3e","#dd6b20","#d69e2e","#38a169","#319795","#3182ce","#5a67d8","#805ad5","#ffb3b3","#ffd699","#ffecb3","#b3ffcc","#b3ecff","#b3c2ff","#d4b3ff","#ffb3ec"].map(c => (
+                        <button key={c} onClick={() => { handleColor(c); setShowColor(false); }} className="h-6 w-6 rounded-md border border-slate-200 transition hover:scale-110 hover:shadow-sm" style={{backgroundColor:c}} title={c}/>
+                      ))}
+                    </div>
+                  </motion.div>
+                </ToolbarPopover>
               </div>
               <div className="relative shrink-0">
-                <button onClick={() => { saveEditorSelection(); setShowBgColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowColor(false); }} className="tb-btn" title="背景色">
+                <button ref={bgColorBtnRef} onClick={() => { saveEditorSelection(); setShowBgColor(prev => !prev); setShowHeading(false); setShowFontSize(false); setShowColor(false); }} className="tb-btn" title="背景色">
                   <Highlighter size={14} />
                 </button>
-                <AnimatePresence>
-                  {showBgColor && (
-                    <motion.div
-                      className="absolute left-0 top-full z-50 mt-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                    >
-                      <div className="grid grid-cols-8 gap-6">
-                        {["#ffffcc","#d9f2d9","#d9e6f2","#e6d9f2","#f2d9d9","#f2eed9","#d9f2f2","#f2d9f2","#ffd9b3","#b3d9ff","#ffb3b3","#b3ffb3","#ffff99","#cc99ff","#99ccff","#ff99cc"].map(c => (
-                          <button key={c} onClick={() => { handleBgColor(c); setShowBgColor(false); }} className="h-6 w-6 rounded-md border border-slate-200 transition hover:scale-110 hover:shadow-sm" style={{backgroundColor:c}} title={c}/>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <ToolbarPopover show={showBgColor} triggerRef={bgColorBtnRef}>
+                  <motion.div
+                    className="rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    <div className="grid grid-cols-8 gap-6">
+                      {["#ffffcc","#d9f2d9","#d9e6f2","#e6d9f2","#f2d9d9","#f2eed9","#d9f2f2","#f2d9f2","#ffd9b3","#b3d9ff","#ffb3b3","#b3ffb3","#ffff99","#cc99ff","#99ccff","#ff99cc"].map(c => (
+                        <button key={c} onClick={() => { handleBgColor(c); setShowBgColor(false); }} className="h-6 w-6 rounded-md border border-slate-200 transition hover:scale-110 hover:shadow-sm" style={{backgroundColor:c}} title={c}/>
+                      ))}
+                    </div>
+                  </motion.div>
+                </ToolbarPopover>
               </div>
               <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
               <button
@@ -733,6 +765,56 @@ export default function KBDetail() {
               <div className="flex items-center gap-3">
               <input className="min-w-0 flex-1 border-none bg-transparent text-xl font-semibold tracking-tight text-slate-950 outline-none placeholder:text-slate-300"
                 value={title} onChange={handleTitleChange} placeholder="标题" />
+              {courses.length > 0 && (editingCourse ? (
+                <select
+                  value={courseId ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    setCourseId(val);
+                    setEditingCourse(false);
+                    scheduleSave();
+                  }}
+                  onBlur={() => setEditingCourse(false)}
+                  autoFocus
+                  className="shrink-0 rounded-lg border border-blue-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none ring-2 ring-blue-100"
+                >
+                  <option value="">不关联课程</option>
+                  {courses.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingCourse(true)}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition hover:shadow-sm ${
+                    courseId
+                      ? "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
+                      : "border-dashed border-slate-300 bg-white text-slate-400 hover:border-slate-400 hover:text-slate-600"
+                  }`}
+                  title="点击修改课程关联"
+                >
+                  {courseId
+                    ? courses.find((c: any) => c.id === courseId)?.name || `课程 #${courseId}`
+                    : "+ 关联课程"}
+                </button>
+              ))}
+              {!isBook && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const htmlContent = editorRef.current?.innerHTML || content;
+                    const courseId = note?.courseId ?? null;
+                    navigate("/forum/new", {
+                      state: { title: title || note?.title || "", content: htmlContent, course_id: courseId },
+                    });
+                  }}
+                  className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-slate-400 hover:text-slate-700 hover:shadow-sm"
+                  title="将当前文档发布到讨论区"
+                >
+                  发布到讨论区
+                </button>
+              )}
               <AnimatePresence>
                 {saveStatus && (
                   <motion.span

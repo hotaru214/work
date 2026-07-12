@@ -16,7 +16,7 @@ import {
 } from "../../components/ui/dialog";
 import { useMutationToast } from "../../components/ui/toast";
 import SpotlightCard from "../../components/SpotlightCard";
-import { useKbRoots, useKbTrash, usePrefetchKbNote } from "../../hooks/api";
+import { useCourses, useKbRoots, useKbTrash, usePrefetchKbNote } from "../../hooks/api";
 import {
   EmptyState,
   IconBadge,
@@ -36,9 +36,11 @@ export default function KBList() {
   const toast = useMutationToast();
   const prefetchKbNote = usePrefetchKbNote();
   const { data: notes = [], isLoading: loading } = useKbRoots();
+  const { data: courses = [] } = useCourses();
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [kbCourseId, setKbCourseId] = useState<number | null>(null);
   const [showTrash, setShowTrash] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [search, setSearch] = useState("");
@@ -87,9 +89,10 @@ export default function KBList() {
     e.preventDefault();
     if (!name.trim()) return;
     try {
-      const result = await api.kb.createNote("__root__", name.trim(), desc.trim(), "book");
+      const result = await api.kb.createNote("__root__", name.trim(), desc.trim(), "book", "text/html", kbCourseId);
       setName("");
       setDesc("");
+      setKbCourseId(null);
       setShowModal(false);
       queryClient.invalidateQueries({ queryKey: ["kb-roots"] });
       navigate(`/kb/${result.note.noteId}`);
@@ -247,6 +250,11 @@ export default function KBList() {
                     <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
                       {note.content || note.description || "进入后补充章节、资料和正文。"}
                     </p>
+                    {note.courseId && (
+                      <span className="mt-2 inline-block rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
+                        {courses.find((c: any) => c.id === note.courseId)?.name || `课程 #${note.courseId}`}
+                      </span>
+                    )}
                     <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-400">
                       <span>{countChildren(note)} 个子节点</span>
                       <span>{note.dateModified ? fmtDate(note.dateModified) : ""}</span>
@@ -277,6 +285,18 @@ export default function KBList() {
           <form onSubmit={onCreate} className="space-y-4">
             <TextField placeholder="知识库名称" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
             <TextAreaField placeholder="简要描述" value={desc} onChange={(e) => setDesc(e.target.value)} rows={4} />
+            {courses.length > 0 && (
+              <select
+                value={kbCourseId ?? ""}
+                onChange={(e) => setKbCourseId(e.target.value ? Number(e.target.value) : null)}
+                className="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+              >
+                <option value="">不关联课程</option>
+                {courses.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
             <DialogFooter className="gap-3 pt-1 sm:space-x-0">
               <SecondaryButton type="button" onClick={() => setShowModal(false)}>取消</SecondaryButton>
               <PrimaryButton type="submit">创建</PrimaryButton>

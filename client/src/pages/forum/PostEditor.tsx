@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "motion/react";
 import { Bot, Check, FileText, Hash, SendHorizonal, Sparkles } from "lucide-react";
 import { api } from "../../api/client";
@@ -11,10 +11,12 @@ import ProgressRing from "../../components/ProgressRing";
 
 export default function PostEditor() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get("session_id");
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const prefill = (location.state as { title?: string; content?: string; course_id?: number } | null) ?? {};
+  const [title, setTitle] = useState(prefill.title ?? "");
+  const [content, setContent] = useState(prefill.content ?? "");
   const { data: allTags = [] } = useTags();
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +66,7 @@ export default function PostEditor() {
       const post = await api.createPost({
         title,
         content,
+        course_id: prefill.course_id ?? undefined,
         session_id: sessionId ? Number(sessionId) : undefined,
         tag_ids: selectedTagIds,
       });

@@ -190,6 +190,7 @@ export const api = {
   getCourse: (id: number) => apiFetch<any>(`/courses/${id}`),
   createCourse: (data: any) => apiFetch("/courses/", { method: "POST", body: JSON.stringify(data) }),
   deleteCourse: (id: number) => apiFetch(`/courses/${id}`, { method: "DELETE" }),
+  generateSummary: (courseId: number) => apiFetch<{summary: string}>(`/courses/${courseId}/summary`, { method: "POST" }),
 
   // ===== Notebooks =====
   listNotebooks: () => apiFetch<any[]>("/notebooks/"),
@@ -245,15 +246,22 @@ export const api = {
 
   // ===== Materials =====
   listMaterials: (courseId: number) => apiFetch<any[]>(`/materials/course/${courseId}`),
-  uploadMaterial: (courseId: number, file: File, type = "other") => {
+  uploadMaterial: (courseId: number, file: File, type = "other", category = "other", dueDate: string | null = null) => {
     const fd = new FormData();
     fd.append("file", file);
+    fd.append("category", category);
+    if (dueDate) fd.append("due_date", dueDate);
     return apiFetch(`/materials/course/${courseId}?type=${encodeURIComponent(type)}`, { method: "POST", body: fd });
   },
   deleteMaterial: (id: number) => apiFetch(`/materials/${id}`, { method: "DELETE" }),
 
   // ===== Chat =====
   listSessions: () => apiFetch<any[]>("/chat/sessions"),
+  updateSession: (sessionId: number, courseId: number | null) => {
+    const params = new URLSearchParams();
+    params.append("course_id", courseId != null ? String(courseId) : "");
+    return apiFetch<any>(`/chat/sessions/${sessionId}?${params.toString()}`, { method: "PATCH" });
+  },
   createSession: (courseId: number | null, title = "新对话") => {
     const params = new URLSearchParams();
     if (courseId != null) params.append("course_id", String(courseId));
@@ -269,6 +277,7 @@ export const api = {
   listPlans: () => apiFetch<any[]>("/plans/"),
   createPlan: (data: any) => apiFetch("/plans/", { method: "POST", body: JSON.stringify(data) }),
   deletePlan: (id: number) => apiFetch(`/plans/${id}`, { method: "DELETE" }),
+  generateTasks: (planId: number) => apiFetch<any>(`/plans/${planId}/generate-tasks`, { method: "POST" }),
 
   // ===== Tasks =====
   listTasks: () => apiFetch<any[]>("/tasks/"),
@@ -288,10 +297,12 @@ export const api = {
     getNote: (noteId: string) => apiFetch<any>(`/kb/notes/${noteId}`),
     getNoteContent: (noteId: string) => apiFetch<any>(`/kb/notes/${noteId}/content`),
     getNoteTree: (noteId: string) => apiFetch<any[]>(`/kb/notes/${noteId}/tree`),
-    createNote: (parentNoteId: string, title: string, content: string = "", type: string = "text", mime: string = "text/html") =>
-      apiFetch<any>("/kb/notes", { method: "POST", body: JSON.stringify({ parent_note_id: parentNoteId, title, content, type, mime }) }),
-    updateContent: (noteId: string, data: any) =>
-      apiFetch<any>(`/kb/notes/${noteId}/content`, { method: "PUT", body: JSON.stringify(data) }),
+    createNote: (parentNoteId: string, title: string, content: string = "", type: string = "text", mime: string = "text/html", courseId: number | null = null) =>
+      apiFetch<any>("/kb/notes", { method: "POST", body: JSON.stringify({ parent_note_id: parentNoteId, title, content, type, mime, course_id: courseId }) }),
+    updateContent: (noteId: string, data: any) => {
+      // 始终传 course_id，让后端 PATCH 行为一致
+      return apiFetch<any>(`/kb/notes/${noteId}/content`, { method: "PUT", body: JSON.stringify(data) });
+    },
     deleteNote: (noteId: string) => apiFetch(`/kb/notes/${noteId}`, { method: "DELETE" }),
     moveNote: (noteId: string, parentNoteId: string, notePosition: number = 0) =>
       apiFetch<any>(`/kb/notes/${noteId}/move?parent_note_id=${parentNoteId}&note_position=${notePosition}`, { method: "PATCH" }),

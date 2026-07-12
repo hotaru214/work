@@ -271,6 +271,48 @@ export default function Dashboard() {
               </div>
             )}
           </Surface>
+
+          {data.upcoming_assignments && data.upcoming_assignments.length > 0 && (
+            <Surface id="dashboard-assignments" className="scroll-mt-6">
+              <SectionTitle
+                title={`即将到期的作业 (${data.upcoming_assignments.length})`}
+                description="标记为「课程作业」且设定了截止日期的资料。"
+              />
+              <div className="divide-y divide-slate-100">
+                {data.upcoming_assignments.map((item: any, index: number) => {
+                  const due = item.due_date ? new Date(item.due_date) : null;
+                  const daysLeft = due
+                    ? Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                    : null;
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.22, delay: Math.min(index * 0.04, 0.2) }}
+                      className="flex items-center gap-3 px-5 py-3"
+                    >
+                      <IconBadge
+                        icon={FileText}
+                        tone={daysLeft !== null && daysLeft <= 3 ? "rose" : daysLeft !== null && daysLeft <= 7 ? "amber" : "slate"}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-slate-900">{item.filename}</span>
+                        <span className="mt-0.5 block text-xs text-slate-400">
+                          {due ? `${due.toLocaleDateString("zh-CN")} 截止` : "无截止日期"}
+                          {daysLeft !== null && (
+                            <span className={daysLeft <= 3 ? "text-rose-500 ml-1" : daysLeft <= 7 ? "text-amber-500 ml-1" : "ml-1"}>
+                              · {daysLeft <= 0 ? "今天到期" : `还剩 ${daysLeft} 天`}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </Surface>
+          )}
         </div>
       </div>
     </PageShell>
