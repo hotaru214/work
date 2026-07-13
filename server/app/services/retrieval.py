@@ -3,10 +3,10 @@
 import re
 from typing import List
 
-from pypdf import PdfReader
+import pdfplumber
 from sqlalchemy.orm import Session
 
-from app.models import KBNote, Material
+from app.models import Material
 from app.schemas import Snippet
 
 TEXT_EXTENSIONS = {
@@ -37,15 +37,15 @@ def _read_text_file(filepath: str) -> str:
 
 
 def _read_pdf_file(filepath: str) -> str:
-    """从 PDF 中提取所有页面的文字。"""
+    """从 PDF 中提取所有页面的文字（pdfplumber，中文兼容性好）。"""
     try:
-        reader = PdfReader(filepath)
-        pages = []
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                pages.append(text.strip())
-        return "\n\n".join(pages)
+        with pdfplumber.open(filepath) as pdf:
+            pages = []
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    pages.append(text.strip())
+            return "\n\n".join(pages)
     except Exception:
         return ""
 
@@ -111,14 +111,8 @@ def search(course_id: int, query: str, k: int = 3, db: Session | None = None) ->
         .all()
     )
 
-    kb_notes = (
-        db.query(KBNote)
-        .filter(KBNote.course_id == course_id, KBNote.is_deleted == False)
-        .all()
-    )
-
-    # 收集所有 (source_label, filename, chunk, score)
-    ranked: List[tuple[str, str, str, float]] = []
+    # 收集所有 (filename, chunk, score)
+    ranked: List[tuple[str, str, float]] = []
 
     for m in materials:
         full_text = _read_content(m)
@@ -129,48 +123,29 @@ def search(course_id: int, query: str, k: int = 3, db: Session | None = None) ->
         for chunk in chunks:
             score = _score_chunk(chunk, query)
             if score > 0:
-                ranked.append(("📄", m.filename, chunk, score))
-
-    for note in kb_notes:
-        full_text = note.content or ""
-        if not full_text.strip():
-            continue
-        # 去掉 HTML 标签获取纯文本
-        import re as _re
-        plain = _re.sub(r"<[^>]*>", "", full_text)
-        if not plain.strip():
-            continue
-
-        chunks = _split_chunks(plain)
-        for chunk in chunks:
-            score = _score_chunk(chunk, query)
-            if score > 0:
-                ranked.append(("📝", note.title, chunk, score))
+                ranked.append((m.filename, chunk, score))
 
     # 按得分降序
-    ranked.sort(key=lambda x: x[3], reverse=True)
+    ranked.sort(key=lambda x: x[2], reverse=True)
 
-    # 每个来源最多取 TOP_CHUNKS_PER_FILE 段
+    # 每个文件最多取 TOP_CHUNKS_PER_FILE 段
     seen_files: dict[str, int] = {}
     top: List[tuple[str, str]] = []
-    for source, filename, chunk, score in ranked:
-        key = f"{source}:{filename}"
-        seen_files[key] = seen_files.get(key, 0) + 1
-        if seen_files[key] <= TOP_CHUNKS_PER_FILE and len(top) < MAX_TOTAL_CHUNKS:
-            top.append((f"{source} {filename}", chunk))
+    for filename, chunk, score in ranked:
+        seen_files[filename] = seen_files.get(filename, 0) + 1
+        if seen_files[filename] <= TOP_CHUNKS_PER_FILE and len(top) < MAX_TOTAL_CHUNKS:
+            top.append((f"📄 {filename}", chunk))
 
-    # 若关键词未命中，回退到资料的摘要 + 笔记内容
+    # 若关键词未命中，回退到资料摘要
     if not top:
-        for m in materials[:k]:
+        for m in materials:
             text = _read_content(m)
-            summary = text[:MAX_CHUNK_CHARS] if text else ""
-            if summary:
-                top.append((f"📄 {m.filename}", summary))
-        for note in kb_notes[:k]:
-            text = note.content or ""
-            plain = _re.sub(r"<[^>]*>", "", text)[:MAX_CHUNK_CHARS] if text else ""
-            if plain:
-                top.append((f"📝 {note.title}", plain))
+            if text:
+                top.append((f"📄 {m.filename}", text[:MAX_TOTAL_CHUNKS]))
+                if len(top) >= MAX_TOTAL_CHUNKS:
+                    break
+            else:
+                top.append((f"📄 {m.filename}", f"（此文件格式暂不支持内容解析：{m.filename}，建议转换为 txt/md/pdf 后重新上传）"))
 
     snippets: List[Snippet] = []
     for filename, chunk in top:

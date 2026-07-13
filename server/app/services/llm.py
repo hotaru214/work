@@ -24,7 +24,9 @@ def _build_messages(history: List[ChatMessage], context: List[Snippet] | None):
         system_parts.append(
             "重要：回答中引用课程资料时，必须标注来源，格式为「📚 参考：文件名」。"
             "如果回答内容来自多个资料，请分别标注。"
-            "如果没有参考任何资料，请在回答末尾说明「⚠️ 未找到相关课程资料」。"
+            "如果资料内容为「此文件格式暂不支持内容解析」，说明该文件存在但无法读取正文，"
+            "请基于文件名和你的知识尽力回答，并在末尾说明哪些文件未能解析内容。"
+            "只有当完全没有任何资料时，才说「⚠️ 未关联课程资料，请在对话设置中选择课程」。"
         )
 
     messages = [{"role": "system", "content": "\n\n".join(system_parts)}]

@@ -803,10 +803,17 @@ export default function KBDetail() {
                 <button
                   type="button"
                   onClick={() => {
-                    const htmlContent = editorRef.current?.innerHTML || content;
+                    // 获取当前内容并转为 Markdown，确保论坛正确渲染
+                    let mdContent: string;
+                    if (editorMode === "markdown") {
+                      mdContent = mdText;
+                    } else {
+                      const htmlContent = editorRef.current?.innerHTML || content;
+                      mdContent = htmlToMd(htmlContent);
+                    }
                     const courseId = note?.courseId ?? null;
                     navigate("/forum/new", {
-                      state: { title: title || note?.title || "", content: htmlContent, course_id: courseId },
+                      state: { title: title || note?.title || "", content: mdContent, course_id: courseId },
                     });
                   }}
                   className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-slate-400 hover:text-slate-700 hover:shadow-sm"
