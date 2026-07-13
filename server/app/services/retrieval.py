@@ -116,8 +116,8 @@ def _split_chunks(text: str) -> List[str]:
 
 
 def _score_chunk(chunk: str, query: str) -> float:
-    """简单的 TF 得分：query 中每个词在 chunk 中出现的次数。"""
-    q_words = set(query.lower().split())
+    """简单的 TF 得分：query 中关键词在 chunk 中出现的次数。"""
+    q_words = set(_query_terms(query))
     if not q_words:
         return 0.0
     chunk_lower = chunk.lower()
@@ -126,7 +126,19 @@ def _score_chunk(chunk: str, query: str) -> float:
 
 
 def _query_terms(query: str) -> list[str]:
-    terms = re.findall(r"[A-Za-z0-9_\-]+|[\u4e00-\u9fff]{2,}", query.lower())
+    normalized = query.lower()
+    for word in [
+        "什么是", "为什么", "怎么", "如何", "请问", "解释一下", "解释",
+        "介绍一下", "介绍", "在哪里出现过", "哪里出现过", "出现在哪里",
+        "这个", "那个", "一下", "？", "?", "，", ",", "。", ".",
+    ]:
+        normalized = normalized.replace(word, " ")
+    terms = re.findall(r"[A-Za-z0-9_\-]+|[\u4e00-\u9fff]{2,}", normalized)
+    stopwords = {
+        "什么", "什么是", "为什么", "怎么", "如何", "请问", "解释", "介绍",
+        "一下", "这个", "那个", "资料", "课程", "问题", "哪里", "出现",
+    }
+    terms = [term for term in terms if term not in stopwords]
     if not terms and query.strip():
         terms = [query.strip().lower()]
     return list(dict.fromkeys(term for term in terms if len(term.strip()) >= 2))
@@ -215,7 +227,11 @@ def search(course_id: int, query: str, k: int = 3, db: Session | None = None) ->
         if seen_files[filename] <= TOP_CHUNKS_PER_FILE and len(top) < MAX_TOTAL_CHUNKS:
             top.append(item)
 
-    # 若关键词未命中，回退到资料摘要
+    # 若用户有明确问题但没有命中，不返回兜底资料，避免把无关文件当作来源。
+    if not top and query.strip():
+        return []
+
+    # 没有关键词时，才回退到资料摘要。
     if not top:
         for m in materials:
             blocks = _read_located_blocks(m)

@@ -12,8 +12,15 @@ router = APIRouter()
 llm = LLMClient()
 
 
-def _append_reference_sources(reply: str, context: list) -> str:
+def _append_reference_sources(reply: str, context: list, has_course: bool = False) -> str:
     if not context:
+        if has_course:
+            return (
+                reply.rstrip()
+                + "\n\n---\n### 你的问题在资料中出现的位置\n"
+                + "- 没有在当前课程已解析的资料中找到精确命中位置。"
+                + "如果资料是扫描版 PDF 或图片，请转换为可复制文字的 PDF/txt/md 后重新上传。"
+            )
         return reply
 
     lines = ["", "---", "### 你的问题在资料中出现的位置"]
@@ -107,7 +114,11 @@ def send_message(session_id: int, body: ChatMessageIn,
         .order_by(ChatMessage.created_at)
         .all()
     )
-    reply_text = _append_reference_sources(llm.chat(history=history, context=context), context)
+    reply_text = _append_reference_sources(
+        llm.chat(history=history, context=context),
+        context,
+        has_course=session.course_id is not None,
+    )
     assistant_msg = ChatMessage(session_id=session_id, role="assistant", content=reply_text)
     db.add(assistant_msg)
     db.commit()
