@@ -1,7 +1,16 @@
-﻿from datetime import datetime
+﻿from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+
+
+CN_TZ = timezone(timedelta(hours=8))
+
+
+def to_cn_iso(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(CN_TZ).isoformat()
 
 
 USERNAME_PATTERN = r"^[A-Za-z0-9_-]{3,32}$"
@@ -232,6 +241,10 @@ class PostListItem(BaseModel):
     tags: list[TagOut] = []
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
+        return to_cn_iso(value)
+
 class PostVoteOut(BaseModel):
     id: int
     post_id: int
@@ -260,6 +273,10 @@ class PostOut(BaseModel):
     tags: list[TagOut] = []
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("created_at", "updated_at")
+    def serialize_times(self, value: datetime) -> str:
+        return to_cn_iso(value)
+
 class CommentCreate(BaseModel):
     post_id: int
     content: str
@@ -274,6 +291,10 @@ class CommentOut(BaseModel):
     created_at: datetime
     author_name: str = ""
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
+        return to_cn_iso(value)
 
 
 # ==================== Knowledge Base (Trilium-style) ====================

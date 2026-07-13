@@ -10,6 +10,7 @@ import { useComments, usePost, usePrefetchPost, useRelatedPosts } from "../../ho
 import { EmptyState, IconBadge, PageShell, PrimaryButton, SecondaryButton, Surface, TextAreaField } from "../../components/PageScaffold";
 import { preloadPage } from "../../pageLoaders";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
+import { formatBeijingDateTime } from "../../utils/time";
 
 function getCurrentUserId() {
   try {
@@ -294,7 +295,7 @@ function AuthorIdentity({
       </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-slate-900">{author}</div>
-        <div className="truncate text-xs text-slate-500">@{username} · {createdAt ? new Date(createdAt).toLocaleString("zh-CN") : "未知时间"}</div>
+        <div className="truncate text-xs text-slate-500">@{username} · {createdAt ? formatBeijingDateTime(createdAt) : "未知时间"}</div>
       </div>
     </div>
   );
@@ -325,7 +326,7 @@ function CommentCard({ comment, index }: { comment: any; index: number }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="font-medium text-slate-900">{comment.author_name}</span>
-            <span className="text-xs text-slate-400">{new Date(comment.created_at).toLocaleString("zh-CN")}</span>
+            <span className="text-xs text-slate-400">{formatBeijingDateTime(comment.created_at)}</span>
           </div>
           <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{comment.content}</div>
         </div>
