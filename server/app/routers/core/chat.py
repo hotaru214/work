@@ -12,6 +12,35 @@ router = APIRouter()
 llm = LLMClient()
 
 
+def _append_reference_sources(reply: str, context: list, has_course: bool = False) -> str:
+    if not context:
+        if has_course:
+            return (
+                reply.rstrip()
+                + "\n\n---\n### 你的问题在资料中出现的位置\n"
+                + "- 没有在当前课程已解析的资料中找到精确命中位置。"
+                + "如果资料是扫描版 PDF 或图片，请转换为可复制文字的 PDF/txt/md 后重新上传。"
+            )
+        return reply
+
+    lines = ["", "---", "### 你的问题在资料中出现的位置"]
+    seen: set[tuple[int, int]] = set()
+    for index, snippet in enumerate(context, start=1):
+        key = (snippet.material_id, snippet.chunk_index)
+        if key in seen:
+            continue
+        seen.add(key)
+        excerpt = snippet.preview or " ".join(snippet.text.split())[:180]
+        matches = "、".join(snippet.matches) if snippet.matches else "未精确命中，展示相关片段"
+        lines.append(
+            f"- [位置{index}] 课程《{snippet.course_name or '未命名课程'}》 / "
+            f"{snippet.filename} / {snippet.location or f'片段 {snippet.chunk_index}'}\n"
+            f"  - 命中：{matches}\n"
+            f"  - 上下文：{excerpt}"
+        )
+    return reply.rstrip() + "\n".join(lines)
+
+
 @router.get("/sessions", response_model=list[ChatSessionOut])
 def list_sessions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(ChatSession).filter(ChatSession.user_id == user.id).order_by(ChatSession.created_at.desc()).all()
@@ -47,6 +76,14 @@ def update_session(session_id: int, course_id: int | None = None,
     return session
 
 
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user.id).first()
+    if session:
+        db.delete(session)
+        db.commit()
+
+
 @router.get("/sessions/{session_id}/messages", response_model=list[ChatMessageOut])
 def list_messages(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user.id).first()
@@ -77,7 +114,11 @@ def send_message(session_id: int, body: ChatMessageIn,
         .order_by(ChatMessage.created_at)
         .all()
     )
-    reply_text = llm.chat(history=history, context=context)
+    reply_text = _append_reference_sources(
+        llm.chat(history=history, context=context),
+        context,
+        has_course=session.course_id is not None,
+    )
     assistant_msg = ChatMessage(session_id=session_id, role="assistant", content=reply_text)
     db.add(assistant_msg)
     db.commit()

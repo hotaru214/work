@@ -1,10 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey, Integer, String, Text, LargeBinary
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class User(Base):
@@ -15,7 +18,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     nickname: Mapped[str] = mapped_column(String(64), default="学习者")
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     courses = relationship("Course", back_populates="user", cascade="all, delete-orphan")
     posts = relationship("Post", back_populates="user", cascade="all, delete-orphan")
@@ -33,7 +36,7 @@ class Course(Base):
     intro: Mapped[str] = mapped_column(Text, default="")
     teacher: Mapped[str] = mapped_column(String(64), default="")
     semester: Mapped[str] = mapped_column(String(32), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     user = relationship("User", back_populates="courses")
     materials = relationship("Material", back_populates="course", cascade="all, delete-orphan")
@@ -50,7 +53,7 @@ class Material(Base):
     category: Mapped[str] = mapped_column(String(32), default="other")  # other / assignment / lecture / lab
     due_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     content_path: Mapped[str] = mapped_column(String(512))
-    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     course = relationship("Course", back_populates="materials")
 
@@ -62,7 +65,7 @@ class ChatSession(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id", ondelete="SET NULL"), nullable=True)
     title: Mapped[str] = mapped_column(String(255), default="新对话")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     course = relationship("Course", back_populates="sessions")
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
@@ -75,7 +78,7 @@ class ChatMessage(Base):
     session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id", ondelete="CASCADE"))
     role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     session = relationship("ChatSession", back_populates="messages")
 
@@ -88,7 +91,7 @@ class Plan(Base):
     goal: Mapped[str] = mapped_column(Text)
     deadline: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     daily_minutes: Mapped[int] = mapped_column(Integer, default=60)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
 
 class Task(Base):
@@ -100,7 +103,7 @@ class Task(Base):
     title: Mapped[str] = mapped_column(String(255))
     due_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     done: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
 
 class Tag(Base):
@@ -109,7 +112,7 @@ class Tag(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     color: Mapped[str] = mapped_column(String(7), default="#6366f1")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
 
 class Post(Base):
@@ -126,8 +129,8 @@ class Post(Base):
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     like_count: Mapped[int] = mapped_column(Integer, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc, onupdate=_now_utc)
 
     user = relationship("User", back_populates="posts")
     votes = relationship("PostVote", back_populates="post", cascade="all, delete-orphan")
@@ -142,7 +145,7 @@ class PostVote(Base):
     post_id: Mapped[int] = mapped_column(ForeignKey("posts.id", ondelete="CASCADE"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     value: Mapped[int] = mapped_column(Integer, default=1)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     post = relationship("Post", back_populates="votes")
     user = relationship("User", back_populates="post_votes")
@@ -156,7 +159,7 @@ class Comment(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("comments.id", ondelete="CASCADE"), nullable=True)
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     post = relationship("Post", back_populates="comments")
     user = relationship("User", back_populates="comments")
@@ -207,8 +210,8 @@ class KBNote(Base):
     is_protected: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     share_token: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True, default=None)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc, onupdate=_now_utc)
 
     user = relationship("User", back_populates="kb_notes")
     branches = relationship("KBBranch", back_populates="note",
@@ -234,7 +237,7 @@ class KBBranch(Base):
     note_position: Mapped[int] = mapped_column(Integer, default=0)
     prefix: Mapped[str] = mapped_column(String(64), default="")
     is_expanded: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     note = relationship("KBNote", back_populates="branches",
                         foreign_keys=[note_id])
@@ -254,7 +257,7 @@ class KBAttribute(Base):
     name: Mapped[str] = mapped_column(String(128))
     value: Mapped[str] = mapped_column(String(1024), default="")
     position: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     note = relationship("KBNote", back_populates="attributes")
 
@@ -273,7 +276,7 @@ class KBRevision(Base):
     type: Mapped[str] = mapped_column(String(32))
     mime: Mapped[str] = mapped_column(String(64))
     content: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
 
     note = relationship("KBNote", back_populates="revisions")
 

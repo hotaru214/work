@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Task, User
-from app.schemas import TaskCreate, TaskOut
+from app.schemas import TaskCreate, TaskOut, TaskUpdate
 from app.security import get_current_user
 
 router = APIRouter()
@@ -32,6 +32,27 @@ def toggle_done(task_id: int, done: bool, user: User = Depends(get_current_user)
     if not task:
         raise HTTPException(status_code=404, detail="task not found")
     task.done = done
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+@router.patch("/{task_id}", response_model=TaskOut)
+def update_task(task_id: int, body: TaskUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id, Task.user_id == user.id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="task not found")
+
+    data = body.model_dump(exclude_unset=True)
+    if "title" in data and data["title"] is not None:
+        task.title = data["title"].strip() or task.title
+    if "due_date" in data:
+        task.due_date = data["due_date"]
+    if "plan_id" in data:
+        task.plan_id = data["plan_id"]
+    if "done" in data and data["done"] is not None:
+        task.done = data["done"]
+
     db.commit()
     db.refresh(task)
     return task

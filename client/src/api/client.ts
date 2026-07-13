@@ -64,6 +64,23 @@ export class ApiError extends Error {
   get isNetwork(): boolean { return this.status === "network"; }
 }
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  const text = await res.text().catch(() => "");
+  if (!text) return fallback;
+  try {
+    const data = JSON.parse(text);
+    if (typeof data.detail === "string") return data.detail;
+    if (Array.isArray(data.detail)) {
+      const first = data.detail.find((item: any) => item?.msg);
+      if (first?.msg) return String(first.msg).replace(/^Value error,\s*/i, "");
+    }
+    if (typeof data.message === "string") return data.message;
+  } catch {
+    return text;
+  }
+  return fallback;
+}
+
 export async function apiFetch<T = any>(
   path: string,
   init: RequestInit = {}
@@ -81,11 +98,15 @@ export async function apiFetch<T = any>(
     throw new ApiError("network", "网络异常，请检查连接后重试", e);
   }
   if (res.status === 401) {
+    const message = await readErrorMessage(res, "登录已过期，请重新登录");
     setToken(null);
+    if (path === "/auth/login") {
+      throw new ApiError(401, message || "用户名或密码错误");
+    }
     if (!window.location.pathname.startsWith("/login")) {
       window.location.href = "/login";
     }
-    throw new ApiError(401, "登录已过期，请重新登录");
+    throw new ApiError(401, message || "登录已过期，请重新登录");
   }
   if (res.status === 403) {
     throw new ApiError(403, "无权限执行此操作");
@@ -97,8 +118,8 @@ export async function apiFetch<T = any>(
     throw new ApiError(res.status, "服务暂时不可用，请重试");
   }
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new ApiError(res.status, text || `请求失败 (${res.status})`);
+    const message = await readErrorMessage(res, `请求失败 (${res.status})`);
+    throw new ApiError(res.status, message);
   }
   if (res.status === 204) return undefined as any;
   return res.json();
@@ -246,6 +267,15 @@ export const api = {
 
   // ===== Materials =====
   listMaterials: (courseId: number) => apiFetch<any[]>(`/materials/course/${courseId}`),
+  searchMaterials: (params: { course_id?: number; q?: string; type?: string; category?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (params.course_id != null) q.set("course_id", String(params.course_id));
+    if (params.q) q.set("q", params.q);
+    if (params.type) q.set("type", params.type);
+    if (params.category) q.set("category", params.category);
+    if (params.limit) q.set("limit", String(params.limit));
+    return apiFetch<any[]>(`/materials/search?${q.toString()}`);
+  },
   uploadMaterial: (courseId: number, file: File, type = "other", category = "other", dueDate: string | null = null) => {
     const fd = new FormData();
     fd.append("file", file);
@@ -253,6 +283,8 @@ export const api = {
     if (dueDate) fd.append("due_date", dueDate);
     return apiFetch(`/materials/course/${courseId}?type=${encodeURIComponent(type)}`, { method: "POST", body: fd });
   },
+  updateMaterial: (id: number, data: { filename?: string; type?: string; category?: string; due_date?: string | null }) =>
+    apiFetch(`/materials/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteMaterial: (id: number) => apiFetch(`/materials/${id}`, { method: "DELETE" }),
 
   // ===== Chat =====
@@ -268,6 +300,7 @@ export const api = {
     params.append("title", title);
     return apiFetch(`/chat/sessions?${params.toString()}`, { method: "POST" });
   },
+  deleteSession: (sessionId: number) => apiFetch(`/chat/sessions/${sessionId}`, { method: "DELETE" }),
   listMessages: (sid: number) => apiFetch<any[]>(`/chat/sessions/${sid}/messages`),
   publishSession: (sessionId: number, title: string, tagIds: string = "") => apiFetch<any>(`/chat/sessions/${sessionId}/publish?title=${encodeURIComponent(title)}&tag_ids=${tagIds}`, { method: "POST" }),
   sessionRelatedPosts: (sessionId: number) => apiFetch<any[]>(`/chat/sessions/${sessionId}/related`),
@@ -278,10 +311,14 @@ export const api = {
   createPlan: (data: any) => apiFetch("/plans/", { method: "POST", body: JSON.stringify(data) }),
   deletePlan: (id: number) => apiFetch(`/plans/${id}`, { method: "DELETE" }),
   generateTasks: (planId: number) => apiFetch<any>(`/plans/${planId}/generate-tasks`, { method: "POST" }),
+  integratedSchedule: (days = 7, dailyMinutes = 180) =>
+    apiFetch<any>(`/plans/integrated-schedule?days=${days}&daily_minutes=${dailyMinutes}`),
 
   // ===== Tasks =====
   listTasks: () => apiFetch<any[]>("/tasks/"),
   createTask: (data: any) => apiFetch("/tasks/", { method: "POST", body: JSON.stringify(data) }),
+  updateTask: (id: number, data: { title?: string; due_date?: string | null; plan_id?: number | null; done?: boolean }) =>
+    apiFetch(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   toggleTask: (id: number, done: boolean) => apiFetch(`/tasks/${id}/done?done=${done}`, { method: "PATCH" }),
   deleteTask: (id: number) => apiFetch(`/tasks/${id}`, { method: "DELETE" }),
 

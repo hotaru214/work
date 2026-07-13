@@ -1,19 +1,58 @@
-﻿from datetime import datetime
+﻿from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+
+
+CN_TZ = timezone(timedelta(hours=8))
+
+
+def to_cn_iso(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(CN_TZ).isoformat()
+
+
+USERNAME_PATTERN = r"^[A-Za-z0-9_-]{3,32}$"
+COMMON_PASSWORDS = {
+    "12345678",
+    "password",
+    "password1",
+    "qwerty123",
+    "admin123",
+    "demo123",
+}
 
 
 class UserBase(BaseModel):
-    username: str
+    username: str = Field(min_length=3, max_length=32, pattern=USERNAME_PATTERN)
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        return str(value).strip().lower()
 
 class UserCreate(UserBase):
-    password: str
-    nickname: str = "学习者"
+    password: str = Field(min_length=8, max_length=128)
+    nickname: str = Field(default="学习者", max_length=64)
     avatar_url: Optional[str] = None
 
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        password = value.strip()
+        classes = [
+            any(ch.islower() for ch in password),
+            any(ch.isupper() for ch in password),
+            any(ch.isdigit() for ch in password),
+            any(not ch.isalnum() for ch in password),
+        ]
+        if password.lower() in COMMON_PASSWORDS or sum(classes) < 3:
+            raise ValueError("密码至少 8 位，并包含大小写字母、数字、符号中的至少 3 类")
+        return value
+
 class UserLogin(UserBase):
-    password: str
+    password: str = Field(min_length=1, max_length=128)
 
 class UserOut(UserBase):
     id: int
@@ -22,7 +61,7 @@ class UserOut(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
 class UserProfileUpdate(BaseModel):
-    nickname: Optional[str] = None
+    nickname: Optional[str] = Field(default=None, max_length=64)
     avatar_url: Optional[str] = None
 
 class Token(BaseModel):
@@ -52,6 +91,28 @@ class MaterialOut(BaseModel):
     due_date: Optional[datetime] = None
     uploaded_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+class MaterialUpdate(BaseModel):
+    filename: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    type: Optional[str] = Field(default=None, max_length=32)
+    category: Optional[str] = Field(default=None, max_length=32)
+    due_date: Optional[datetime] = None
+
+class MaterialSearchResult(BaseModel):
+    material_id: int
+    course_id: int
+    course_name: str
+    filename: str
+    type: str
+    category: str = "other"
+    uploaded_at: datetime
+    chunk_index: int = 1
+    page_number: Optional[int] = None
+    location: str = ""
+    text: str
+    preview: str = ""
+    matches: list[str] = []
+    score: float = 0.0
 
 class ChatMessageIn(BaseModel):
     content: str
@@ -92,6 +153,12 @@ class TaskBase(BaseModel):
 class TaskCreate(TaskBase):
     pass
 
+class TaskUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    due_date: Optional[datetime] = None
+    plan_id: Optional[int] = None
+    done: Optional[bool] = None
+
 class TaskOut(TaskBase):
     id: int
     user_id: int
@@ -100,8 +167,38 @@ class TaskOut(TaskBase):
 
 class Snippet(BaseModel):
     material_id: int
+    course_id: Optional[int] = None
+    course_name: str = ""
     filename: str
     text: str
+    chunk_index: int = 1
+    page_number: Optional[int] = None
+    location: str = ""
+    preview: str = ""
+    matches: list[str] = []
+
+
+class StudyScheduleSlot(BaseModel):
+    course_id: Optional[int] = None
+    course_name: str
+    title: str
+    source_type: str
+    start_time: str
+    end_time: str
+    estimated_minutes: int
+    deadline: Optional[datetime] = None
+    reason: str = ""
+
+
+class StudyScheduleDay(BaseModel):
+    date: str
+    total_minutes: int
+    slots: list[StudyScheduleSlot] = []
+
+
+class StudyScheduleOut(BaseModel):
+    days: list[StudyScheduleDay] = []
+    unscheduled: list[StudyScheduleSlot] = []
 
 class TagCreate(BaseModel):
     name: str
@@ -144,6 +241,10 @@ class PostListItem(BaseModel):
     tags: list[TagOut] = []
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
+        return to_cn_iso(value)
+
 class PostVoteOut(BaseModel):
     id: int
     post_id: int
@@ -172,6 +273,10 @@ class PostOut(BaseModel):
     tags: list[TagOut] = []
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("created_at", "updated_at")
+    def serialize_times(self, value: datetime) -> str:
+        return to_cn_iso(value)
+
 class CommentCreate(BaseModel):
     post_id: int
     content: str
@@ -186,6 +291,10 @@ class CommentOut(BaseModel):
     created_at: datetime
     author_name: str = ""
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
+        return to_cn_iso(value)
 
 
 # ==================== Knowledge Base (Trilium-style) ====================

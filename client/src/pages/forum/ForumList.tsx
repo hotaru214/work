@@ -18,23 +18,12 @@ import {
 } from "../../components/ui/pagination";
 import { EmptyState, PageShell, SecondaryButton } from "../../components/PageScaffold";
 import { preloadPage } from "../../pageLoaders";
+import { formatBeijingDateTime } from "../../utils/time";
 
 const PAGE_SIZE = 8;
 
 function getInitial(name?: string) {
   return (name || "学").trim().slice(0, 1).toUpperCase();
-}
-
-function formatDate(value?: string) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function stripHtml(value?: string) {
@@ -82,7 +71,7 @@ function ForumTweetCard({
               {post.is_essence && <BadgeCheck className="size-4 shrink-0 text-blue-500" />}
             </div>
             <div className="truncate text-sm text-slate-500">
-              @{username} · {formatDate(post.created_at)}
+              @{username} · {formatBeijingDateTime(post.created_at)}
             </div>
           </div>
         </div>

@@ -1,11 +1,12 @@
 ﻿"""初始化数据库并写入种子数据。
 用法：python -m app.seed
 """
-from app.database import Base, SessionLocal, engine
+from app.database import Base, SessionLocal, engine, ensure_schema
 from app.models import Course, User
 from app.security import hash_password
 
 Base.metadata.create_all(bind=engine)
+ensure_schema()
 
 
 def run():
