@@ -11,8 +11,9 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import Course, Material, User
-from app.schemas import MaterialOut
+from app.schemas import MaterialOut, MaterialSearchResult, MaterialUpdate
 from app.security import get_current_user
+from app.services.retrieval import _read_content, _score_chunk, _split_chunks
 
 router = APIRouter()
 
@@ -28,6 +29,87 @@ def _ensure_owned(course_id: int, user: User, db: Session) -> Course:
 def list_for_course(course_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     _ensure_owned(course_id, user, db)
     return db.query(Material).filter(Material.course_id == course_id).all()
+
+
+@router.get("/search", response_model=list[MaterialSearchResult])
+def search_materials(
+    course_id: int | None = None,
+    q: str = "",
+    type: str | None = None,
+    category: str | None = None,
+    limit: int = 20,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Material, Course).join(Course).filter(Course.user_id == user.id)
+    if course_id is not None:
+        query = query.filter(Material.course_id == course_id)
+    if type:
+        query = query.filter(Material.type == type)
+    if category:
+        query = query.filter(Material.category == category)
+
+    keyword = q.strip()
+    max_results = max(1, min(limit, 50))
+    ranked: list[dict] = []
+
+    for material, course in query.all():
+        text = _read_content(material)
+        chunks = _split_chunks(text) if text else []
+        if keyword:
+            for index, chunk in enumerate(chunks, start=1):
+                score = _score_chunk(chunk, keyword)
+                if score > 0:
+                    ranked.append(
+                        {
+                            "material": material,
+                            "course": course,
+                            "chunk_index": index,
+                            "text": chunk,
+                            "score": score,
+                        }
+                    )
+            if keyword.lower() in material.filename.lower():
+                ranked.append(
+                    {
+                        "material": material,
+                        "course": course,
+                        "chunk_index": 1,
+                        "text": chunks[0] if chunks else f"文件名匹配：{material.filename}",
+                        "score": 0.5,
+                    }
+                )
+        else:
+            ranked.append(
+                {
+                    "material": material,
+                    "course": course,
+                    "chunk_index": 1,
+                    "text": chunks[0] if chunks else f"（此文件暂未解析出正文：{material.filename}）",
+                    "score": 0.0,
+                }
+            )
+
+    ranked.sort(key=lambda item: item["score"], reverse=True)
+    results: list[MaterialSearchResult] = []
+    for item in ranked[:max_results]:
+        material = item["material"]
+        course = item["course"]
+        results.append(
+            MaterialSearchResult(
+                material_id=material.id,
+                course_id=material.course_id,
+                course_name=course.name,
+                filename=material.filename,
+                type=material.type,
+                category=material.category,
+                uploaded_at=material.uploaded_at,
+                chunk_index=item["chunk_index"],
+                text=item["text"],
+                score=float(item["score"]),
+            )
+        )
+    return results
 
 
 @router.post("/course/{course_id}", response_model=MaterialOut, status_code=status.HTTP_201_CREATED)
@@ -97,6 +179,32 @@ def get_material(material_id: int, user: User = Depends(get_current_user), db: S
     if not m:
         raise HTTPException(status_code=404, detail="material not found")
     return m
+
+
+@router.patch("/{material_id}", response_model=MaterialOut)
+def update_material(
+    material_id: int,
+    body: MaterialUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    material = db.query(Material).join(Course).filter(Material.id == material_id, Course.user_id == user.id).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="material not found")
+
+    data = body.model_dump(exclude_unset=True)
+    if "filename" in data and data["filename"] is not None:
+        material.filename = data["filename"].strip() or material.filename
+    if "type" in data and data["type"] is not None:
+        material.type = data["type"].strip() or "other"
+    if "category" in data and data["category"] is not None:
+        material.category = data["category"].strip() or "other"
+    if "due_date" in data:
+        material.due_date = data["due_date"]
+
+    db.commit()
+    db.refresh(material)
+    return material
 
 
 @router.delete("/{material_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -267,6 +267,15 @@ export const api = {
 
   // ===== Materials =====
   listMaterials: (courseId: number) => apiFetch<any[]>(`/materials/course/${courseId}`),
+  searchMaterials: (params: { course_id?: number; q?: string; type?: string; category?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (params.course_id != null) q.set("course_id", String(params.course_id));
+    if (params.q) q.set("q", params.q);
+    if (params.type) q.set("type", params.type);
+    if (params.category) q.set("category", params.category);
+    if (params.limit) q.set("limit", String(params.limit));
+    return apiFetch<any[]>(`/materials/search?${q.toString()}`);
+  },
   uploadMaterial: (courseId: number, file: File, type = "other", category = "other", dueDate: string | null = null) => {
     const fd = new FormData();
     fd.append("file", file);
@@ -274,6 +283,8 @@ export const api = {
     if (dueDate) fd.append("due_date", dueDate);
     return apiFetch(`/materials/course/${courseId}?type=${encodeURIComponent(type)}`, { method: "POST", body: fd });
   },
+  updateMaterial: (id: number, data: { filename?: string; type?: string; category?: string; due_date?: string | null }) =>
+    apiFetch(`/materials/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteMaterial: (id: number) => apiFetch(`/materials/${id}`, { method: "DELETE" }),
 
   // ===== Chat =====
@@ -306,6 +317,8 @@ export const api = {
   // ===== Tasks =====
   listTasks: () => apiFetch<any[]>("/tasks/"),
   createTask: (data: any) => apiFetch("/tasks/", { method: "POST", body: JSON.stringify(data) }),
+  updateTask: (id: number, data: { title?: string; due_date?: string | null; plan_id?: number | null; done?: boolean }) =>
+    apiFetch(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   toggleTask: (id: number, done: boolean) => apiFetch(`/tasks/${id}/done?done=${done}`, { method: "PATCH" }),
   deleteTask: (id: number) => apiFetch(`/tasks/${id}`, { method: "DELETE" }),
 

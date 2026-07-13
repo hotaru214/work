@@ -83,6 +83,24 @@ class MaterialOut(BaseModel):
     uploaded_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+class MaterialUpdate(BaseModel):
+    filename: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    type: Optional[str] = Field(default=None, max_length=32)
+    category: Optional[str] = Field(default=None, max_length=32)
+    due_date: Optional[datetime] = None
+
+class MaterialSearchResult(BaseModel):
+    material_id: int
+    course_id: int
+    course_name: str
+    filename: str
+    type: str
+    category: str = "other"
+    uploaded_at: datetime
+    chunk_index: int = 1
+    text: str
+    score: float = 0.0
+
 class ChatMessageIn(BaseModel):
     content: str
 
@@ -121,6 +139,12 @@ class TaskBase(BaseModel):
 
 class TaskCreate(TaskBase):
     pass
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    due_date: Optional[datetime] = None
+    plan_id: Optional[int] = None
+    done: Optional[bool] = None
 
 class TaskOut(TaskBase):
     id: int
