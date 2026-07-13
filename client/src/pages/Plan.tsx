@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarClock, Clock3, Plus, Route, Search, Sparkles, Trash2, X } from "lucide-react";
+import { CalendarClock, Clock3, Layers3, Plus, Route, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useCreatePlan, useDeletePlan, usePlans } from "../hooks/api";
@@ -42,6 +42,8 @@ export default function Plan() {
   const [createOpen, setCreateOpen] = useState(false);
   const [deletingPlan, setDeletingPlan] = useState<any | null>(null);
   const [generatingPlanId, setGeneratingPlanId] = useState<number | null>(null);
+  const [schedule, setSchedule] = useState<any | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [deadlineFilter, setDeadlineFilter] = useState<"all" | "scheduled" | "week" | "unscheduled">("all");
 
@@ -83,6 +85,20 @@ export default function Plan() {
       toast.error(e.message || "生成失败");
     } finally {
       setGeneratingPlanId(null);
+    }
+  }
+
+  async function handleGenerateIntegratedSchedule() {
+    if (scheduleLoading) return;
+    setScheduleLoading(true);
+    try {
+      const result = await api.integratedSchedule(7, Math.max(60, Number(daily || 180)));
+      setSchedule(result);
+      toast.success("已生成多课程综合安排");
+    } catch (e: any) {
+      toast.error(e.message || "生成综合安排失败");
+    } finally {
+      setScheduleLoading(false);
     }
   }
 
@@ -130,6 +146,10 @@ export default function Plan() {
       actions={
         <>
           <div className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">共 {plans.length} 个计划</div>
+          <SecondaryButton onClick={handleGenerateIntegratedSchedule} disabled={scheduleLoading}>
+            <Layers3 size={16} />
+            {scheduleLoading ? "生成中..." : "综合安排"}
+          </SecondaryButton>
           <PrimaryButton onClick={() => setCreateOpen(true)}>
             <Plus size={16} />
             生成计划
@@ -178,6 +198,8 @@ export default function Plan() {
         unscheduledCount={unscheduledCount}
         onFocusPlan={focusPlanInList}
       />
+
+      {schedule && <IntegratedSchedulePanel schedule={schedule} />}
 
       <div className="space-y-4">
           {pageErrorMessage && <ErrorState message={pageErrorMessage} />}
@@ -332,6 +354,90 @@ export default function Plan() {
         )}
       </AnimatePresence>
     </PageShell>
+  );
+}
+
+function IntegratedSchedulePanel({ schedule }: { schedule: any }) {
+  const days = schedule?.days ?? [];
+  const unscheduled = schedule?.unscheduled ?? [];
+  const totalSlots = days.reduce((sum: number, day: any) => sum + (day.slots?.length ?? 0), 0);
+
+  return (
+    <Surface className="overflow-hidden p-0">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <IconBadge icon={Layers3} tone="blue" />
+            <h2 className="text-sm font-semibold text-slate-950">多课程综合学习安排</h2>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            根据课程作业截止、已有计划和待办任务自动排出未来 7 天学习时间块。
+          </p>
+        </div>
+        <div className="rounded-full bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500">
+          共 {totalSlots} 个时间块
+        </div>
+      </div>
+
+      {totalSlots === 0 ? (
+        <div className="p-5">
+          <EmptyState title="暂无可排程内容" description="创建学习计划、待办任务，或给课程作业资料设置截止日期后再生成。" icon={Layers3} />
+        </div>
+      ) : (
+        <div className="grid gap-4 p-5 lg:grid-cols-2">
+          {days.map((day: any) => (
+            <div key={day.date} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-950">{formatScheduleDate(day.date)}</div>
+                  <div className="mt-0.5 text-xs text-slate-400">累计 {day.total_minutes} 分钟</div>
+                </div>
+                <CalendarClock size={17} className="text-slate-400" />
+              </div>
+              {day.slots?.length ? (
+                <div className="space-y-2">
+                  {day.slots.map((slot: any, index: number) => (
+                    <div key={`${day.date}-${index}`} className="rounded-xl bg-slate-50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-slate-900">{slot.title}</div>
+                          <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+                            <span>{slot.course_name}</span>
+                            <span>{sourceTypeLabel(slot.source_type)}</span>
+                            {slot.deadline && <span>截止 {formatDate(slot.deadline)}</span>}
+                          </div>
+                        </div>
+                        <div className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+                          {slot.start_time}-{slot.end_time}
+                        </div>
+                      </div>
+                      <div className="mt-2 text-xs leading-5 text-slate-400">{slot.reason}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-8 text-center text-sm text-slate-400">
+                  当天暂无安排
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {unscheduled.length > 0 && (
+        <div className="border-t border-slate-100 bg-amber-50/50 px-5 py-4">
+          <div className="mb-2 text-sm font-semibold text-amber-700">未排入的任务</div>
+          <div className="space-y-1 text-xs leading-5 text-amber-700">
+            {unscheduled.slice(0, 5).map((item: any, index: number) => (
+              <div key={index}>
+                {item.course_name}：{item.title}（剩余 {item.estimated_minutes} 分钟）
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Surface>
   );
 }
 
@@ -551,6 +657,21 @@ function formatDate(value: string) {
   } catch {
     return value;
   }
+}
+
+function formatScheduleDate(value: string) {
+  try {
+    return new Date(`${value}T00:00:00`).toLocaleDateString("zh-CN", { weekday: "short", month: "2-digit", day: "2-digit" });
+  } catch {
+    return value;
+  }
+}
+
+function sourceTypeLabel(value: string) {
+  if (value === "assignment") return "课程作业";
+  if (value === "task") return "待办任务";
+  if (value === "plan") return "学习计划";
+  return "学习安排";
 }
 
 function isWithinDays(value: string, days: number) {

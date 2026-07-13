@@ -18,15 +18,19 @@ def _build_messages(history: List[ChatMessage], context: List[Snippet] | None):
     ]
     if context:
         refs = "\n".join(
-            f"- {s.filename}\n  ```\n  {s.text[:800]}{'...' if len(s.text) > 800 else ''}\n  ```"
-            for s in context[:5]
+            (
+                f"- 来源 [{index}]：课程《{s.course_name or '未命名课程'}》 / "
+                f"{s.filename} / 片段 {s.chunk_index}\n"
+                f"  ```\n  {s.text[:800]}{'...' if len(s.text) > 800 else ''}\n  ```"
+            )
+            for index, s in enumerate(context[:5], start=1)
         )
-        system_parts.append(f"以下是课程相关资料，请优先参考：\n{refs}")
+        system_parts.append(f"以下是课程相关资料片段，请优先参考：\n{refs}")
         system_parts.append(
-            "重要：回答中引用课程资料时，必须标注来源，格式为「参考：文件名」。"
+            "重要：回答中引用课程资料时，必须在相关句子后标注来源编号，例如「[来源1]」。"
             "如果回答内容来自多个资料，请分别标注。"
             "如果资料内容为「此文件格式暂不支持内容解析」，说明该文件存在但无法读取正文。"
-            "请基于文件名和你的知识尽力回答，并在末尾说明哪些文件未能解析内容。"
+            "请基于文件名和你的知识尽力回答，并说明哪些文件未能解析内容。"
             "只有当完全没有任何资料时，才说「尚未关联课程资料，请在对话设置中选择课程」。"
         )
 
@@ -77,7 +81,10 @@ class LLMClient:
         question = last_user.content if last_user else ""
         refs = ""
         if context:
-            refs = "\n\n参考资料：\n" + "\n".join(f"- {snippet.filename}" for snippet in context)
+            refs = "\n\n参考来源：\n" + "\n".join(
+                f"- [{index}] 《{snippet.course_name or '未命名课程'}》 / {snippet.filename} / 片段 {snippet.chunk_index}"
+                for index, snippet in enumerate(context, start=1)
+            )
         return f"[mock LLM] 已收到问题：{question}。接入真实大模型后会替换为基于课程资料的回答。{refs}"
 
     def summarize(self, title: str, content: str) -> str:
@@ -114,10 +121,10 @@ class LLMClient:
                     "content": (
                         "你是课程学习助手，请根据课程资料生成结构化复习提纲。要求：\n"
                         "1. 使用 Markdown 多级标题。\n"
-                        "2. 提取核心知识点、公式、方法和常见误区。\n"
-                        "3. 标注知识点来源文件。\n"
+                        "2. 必须包含：核心知识点、公式/定义、典型题型、易错点、复习优先级、复习建议。\n"
+                        "3. 每个知识点尽量标注来源文件。\n"
                         "4. 按知识体系组织，不要按文件罗列。\n"
-                        "5. 最后附重点复习建议。"
+                        "5. 末尾附「来源资料」列表。"
                     ),
                 },
                 {"role": "user", "content": f"课程：{course_name}\n\n{material_text}\n\n请生成复习提纲。"},

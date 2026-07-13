@@ -6,7 +6,7 @@ from typing import List
 import pdfplumber
 from sqlalchemy.orm import Session
 
-from app.models import Material
+from app.models import Course, Material
 from app.schemas import Snippet
 
 TEXT_EXTENSIONS = {
@@ -111,8 +111,11 @@ def search(course_id: int, query: str, k: int = 3, db: Session | None = None) ->
         .all()
     )
 
-    # 收集所有 (filename, chunk, score)
-    ranked: List[tuple[str, str, float]] = []
+    course = db.query(Course).filter(Course.id == course_id).first()
+    course_name = course.name if course else ""
+
+    # 收集所有 (material_id, filename, chunk_index, chunk, score)
+    ranked: List[tuple[int, str, int, str, float]] = []
 
     for m in materials:
         full_text = _read_content(m)
@@ -120,39 +123,42 @@ def search(course_id: int, query: str, k: int = 3, db: Session | None = None) ->
             continue
 
         chunks = _split_chunks(full_text)
-        for chunk in chunks:
+        for index, chunk in enumerate(chunks, start=1):
             score = _score_chunk(chunk, query)
             if score > 0:
-                ranked.append((m.filename, chunk, score))
+                ranked.append((m.id, m.filename, index, chunk, score))
 
     # 按得分降序
     ranked.sort(key=lambda x: x[2], reverse=True)
 
     # 每个文件最多取 TOP_CHUNKS_PER_FILE 段
     seen_files: dict[str, int] = {}
-    top: List[tuple[str, str]] = []
-    for filename, chunk, score in ranked:
+    top: List[tuple[int, str, int, str]] = []
+    for material_id, filename, chunk_index, chunk, score in ranked:
         seen_files[filename] = seen_files.get(filename, 0) + 1
         if seen_files[filename] <= TOP_CHUNKS_PER_FILE and len(top) < MAX_TOTAL_CHUNKS:
-            top.append((f"📄 {filename}", chunk))
+            top.append((material_id, filename, chunk_index, chunk))
 
     # 若关键词未命中，回退到资料摘要
     if not top:
         for m in materials:
             text = _read_content(m)
             if text:
-                top.append((f"📄 {m.filename}", text[:MAX_TOTAL_CHUNKS]))
+                top.append((m.id, m.filename, 1, text[:MAX_CHUNK_CHARS]))
                 if len(top) >= MAX_TOTAL_CHUNKS:
                     break
             else:
-                top.append((f"📄 {m.filename}", f"（此文件格式暂不支持内容解析：{m.filename}，建议转换为 txt/md/pdf 后重新上传）"))
+                top.append((m.id, m.filename, 1, f"（此文件格式暂不支持内容解析：{m.filename}，建议转换为 txt/md/pdf 后重新上传）"))
 
     snippets: List[Snippet] = []
-    for filename, chunk in top:
+    for material_id, filename, chunk_index, chunk in top[:k]:
         snippets.append(Snippet(
-            material_id=0,
+            material_id=material_id,
+            course_id=course_id,
+            course_name=course_name,
             filename=filename,
             text=chunk,
+            chunk_index=chunk_index,
         ))
 
     return snippets

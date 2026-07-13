@@ -300,6 +300,8 @@ export const api = {
   createPlan: (data: any) => apiFetch("/plans/", { method: "POST", body: JSON.stringify(data) }),
   deletePlan: (id: number) => apiFetch(`/plans/${id}`, { method: "DELETE" }),
   generateTasks: (planId: number) => apiFetch<any>(`/plans/${planId}/generate-tasks`, { method: "POST" }),
+  integratedSchedule: (days = 7, dailyMinutes = 180) =>
+    apiFetch<any>(`/plans/integrated-schedule?days=${days}&daily_minutes=${dailyMinutes}`),
 
   // ===== Tasks =====
   listTasks: () => apiFetch<any[]>("/tasks/"),

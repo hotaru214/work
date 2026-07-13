@@ -130,8 +130,34 @@ class TaskOut(TaskBase):
 
 class Snippet(BaseModel):
     material_id: int
+    course_id: Optional[int] = None
+    course_name: str = ""
     filename: str
     text: str
+    chunk_index: int = 1
+
+
+class StudyScheduleSlot(BaseModel):
+    course_id: Optional[int] = None
+    course_name: str
+    title: str
+    source_type: str
+    start_time: str
+    end_time: str
+    estimated_minutes: int
+    deadline: Optional[datetime] = None
+    reason: str = ""
+
+
+class StudyScheduleDay(BaseModel):
+    date: str
+    total_minutes: int
+    slots: list[StudyScheduleSlot] = []
+
+
+class StudyScheduleOut(BaseModel):
+    days: list[StudyScheduleDay] = []
+    unscheduled: list[StudyScheduleSlot] = []
 
 class TagCreate(BaseModel):
     name: str

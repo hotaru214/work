@@ -12,6 +12,27 @@ router = APIRouter()
 llm = LLMClient()
 
 
+def _append_reference_sources(reply: str, context: list) -> str:
+    if not context:
+        return reply
+
+    lines = ["", "---", "### 参考来源"]
+    seen: set[tuple[int, int]] = set()
+    for index, snippet in enumerate(context, start=1):
+        key = (snippet.material_id, snippet.chunk_index)
+        if key in seen:
+            continue
+        seen.add(key)
+        excerpt = " ".join(snippet.text.split())[:160]
+        if len(" ".join(snippet.text.split())) > 160:
+            excerpt += "..."
+        lines.append(
+            f"- [来源{index}] 课程《{snippet.course_name or '未命名课程'}》 / "
+            f"{snippet.filename} / 片段 {snippet.chunk_index}：{excerpt}"
+        )
+    return reply.rstrip() + "\n".join(lines)
+
+
 @router.get("/sessions", response_model=list[ChatSessionOut])
 def list_sessions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(ChatSession).filter(ChatSession.user_id == user.id).order_by(ChatSession.created_at.desc()).all()
@@ -85,7 +106,7 @@ def send_message(session_id: int, body: ChatMessageIn,
         .order_by(ChatMessage.created_at)
         .all()
     )
-    reply_text = llm.chat(history=history, context=context)
+    reply_text = _append_reference_sources(llm.chat(history=history, context=context), context)
     assistant_msg = ChatMessage(session_id=session_id, role="assistant", content=reply_text)
     db.add(assistant_msg)
     db.commit()
