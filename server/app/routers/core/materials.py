@@ -13,7 +13,13 @@ from app.database import get_db
 from app.models import Course, Material, User
 from app.schemas import MaterialOut, MaterialSearchResult, MaterialUpdate
 from app.security import get_current_user
-from app.services.retrieval import _read_content, _score_chunk, _split_chunks
+from app.services.retrieval import (
+    _location_label,
+    _matched_terms,
+    _preview_for_match,
+    _read_located_blocks,
+    _score_chunk,
+)
 
 router = APIRouter()
 
@@ -54,38 +60,51 @@ def search_materials(
     ranked: list[dict] = []
 
     for material, course in query.all():
-        text = _read_content(material)
-        chunks = _split_chunks(text) if text else []
+        blocks = _read_located_blocks(material)
         if keyword:
-            for index, chunk in enumerate(chunks, start=1):
+            for index, block in enumerate(blocks, start=1):
+                chunk = block["text"]
                 score = _score_chunk(chunk, keyword)
                 if score > 0:
+                    matches = _matched_terms(chunk, keyword)
                     ranked.append(
                         {
                             "material": material,
                             "course": course,
                             "chunk_index": index,
+                            "page_number": block.get("page_number"),
                             "text": chunk,
+                            "matches": matches,
+                            "preview": _preview_for_match(chunk, matches),
                             "score": score,
                         }
                     )
             if keyword.lower() in material.filename.lower():
+                chunk = blocks[0]["text"] if blocks else f"文件名匹配：{material.filename}"
+                matches = _matched_terms(material.filename, keyword) or [keyword]
                 ranked.append(
                     {
                         "material": material,
                         "course": course,
                         "chunk_index": 1,
-                        "text": chunks[0] if chunks else f"文件名匹配：{material.filename}",
+                        "page_number": blocks[0].get("page_number") if blocks else None,
+                        "text": chunk,
+                        "matches": matches,
+                        "preview": _preview_for_match(chunk, matches) or f"文件名匹配：{material.filename}",
                         "score": 0.5,
                     }
                 )
         else:
+            chunk = blocks[0]["text"] if blocks else f"（此文件暂未解析出正文：{material.filename}）"
             ranked.append(
                 {
                     "material": material,
                     "course": course,
                     "chunk_index": 1,
-                    "text": chunks[0] if chunks else f"（此文件暂未解析出正文：{material.filename}）",
+                    "page_number": blocks[0].get("page_number") if blocks else None,
+                    "text": chunk,
+                    "matches": [],
+                    "preview": _preview_for_match(chunk, []),
                     "score": 0.0,
                 }
             )
@@ -105,7 +124,11 @@ def search_materials(
                 category=material.category,
                 uploaded_at=material.uploaded_at,
                 chunk_index=item["chunk_index"],
+                page_number=item.get("page_number"),
+                location=_location_label(item.get("page_number"), item["chunk_index"]),
                 text=item["text"],
+                preview=item.get("preview") or _preview_for_match(item["text"], item.get("matches", [])),
+                matches=item.get("matches", []),
                 score=float(item["score"]),
             )
         )

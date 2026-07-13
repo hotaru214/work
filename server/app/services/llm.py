@@ -19,15 +19,16 @@ def _build_messages(history: List[ChatMessage], context: List[Snippet] | None):
     if context:
         refs = "\n".join(
             (
-                f"- 来源 [{index}]：课程《{s.course_name or '未命名课程'}》 / "
-                f"{s.filename} / 片段 {s.chunk_index}\n"
+                f"- 位置 [{index}]：课程《{s.course_name or '未命名课程'}》 / "
+                f"{s.filename} / {s.location or f'片段 {s.chunk_index}'} / "
+                f"命中词：{'、'.join(s.matches) if s.matches else '相关片段'}\n"
                 f"  ```\n  {s.text[:800]}{'...' if len(s.text) > 800 else ''}\n  ```"
             )
             for index, s in enumerate(context[:5], start=1)
         )
         system_parts.append(f"以下是课程相关资料片段，请优先参考：\n{refs}")
         system_parts.append(
-            "重要：回答中引用课程资料时，必须在相关句子后标注来源编号，例如「[来源1]」。"
+            "重要：回答中引用课程资料时，必须在相关句子后标注位置编号，例如「[位置1]」。"
             "如果回答内容来自多个资料，请分别标注。"
             "如果资料内容为「此文件格式暂不支持内容解析」，说明该文件存在但无法读取正文。"
             "请基于文件名和你的知识尽力回答，并说明哪些文件未能解析内容。"
@@ -81,8 +82,8 @@ class LLMClient:
         question = last_user.content if last_user else ""
         refs = ""
         if context:
-            refs = "\n\n参考来源：\n" + "\n".join(
-                f"- [{index}] 《{snippet.course_name or '未命名课程'}》 / {snippet.filename} / 片段 {snippet.chunk_index}"
+            refs = "\n\n你的问题在资料中出现的位置：\n" + "\n".join(
+                f"- [位置{index}] 《{snippet.course_name or '未命名课程'}》 / {snippet.filename} / {snippet.location or f'片段 {snippet.chunk_index}'}"
                 for index, snippet in enumerate(context, start=1)
             )
         return f"[mock LLM] 已收到问题：{question}。接入真实大模型后会替换为基于课程资料的回答。{refs}"
