@@ -63,7 +63,7 @@ def _infer_deadline_from_goal(goal: str, explicit: datetime | None) -> datetime 
     if explicit:
         return explicit
 
-    today = datetime.utcnow().date()
+    today = datetime.now().date()
     text = goal.strip()
 
     if "今天" in text:
@@ -118,7 +118,7 @@ def _deadline_label(deadline: datetime | None) -> str:
 def _planning_days(deadline: datetime | None) -> int:
     if not deadline:
         return 7
-    today = datetime.utcnow().date()
+    today = datetime.now().date()
     return max(1, min(45, (deadline.date() - today).days + 1))
 
 
@@ -352,7 +352,7 @@ def _build_integrated_schedule(
             )
         )
 
-    today = datetime.utcnow().date()
+    today = datetime.now().date()
     day_results: list[dict[str, Any]] = []
     start_clock = 19 * 60
     max_days = max(1, min(21, days))
@@ -427,7 +427,7 @@ def _build_integrated_schedule(
 
 
 def _create_tasks_for_plan(plan: Plan, user_id: int, db: Session) -> list[Task]:
-    today = datetime.utcnow()
+    today = datetime.now()
     tasks_data = _build_tasks(plan.goal, plan.deadline, plan.daily_minutes)
     tasks: list[Task] = []
 
