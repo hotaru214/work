@@ -1,19 +1,49 @@
 ﻿from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+USERNAME_PATTERN = r"^[A-Za-z0-9_-]{3,32}$"
+COMMON_PASSWORDS = {
+    "12345678",
+    "password",
+    "password1",
+    "qwerty123",
+    "admin123",
+    "demo123",
+}
 
 
 class UserBase(BaseModel):
-    username: str
+    username: str = Field(min_length=3, max_length=32, pattern=USERNAME_PATTERN)
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        return str(value).strip().lower()
 
 class UserCreate(UserBase):
-    password: str
-    nickname: str = "学习者"
+    password: str = Field(min_length=8, max_length=128)
+    nickname: str = Field(default="学习者", max_length=64)
     avatar_url: Optional[str] = None
 
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        password = value.strip()
+        classes = [
+            any(ch.islower() for ch in password),
+            any(ch.isupper() for ch in password),
+            any(ch.isdigit() for ch in password),
+            any(not ch.isalnum() for ch in password),
+        ]
+        if password.lower() in COMMON_PASSWORDS or sum(classes) < 3:
+            raise ValueError("密码至少 8 位，并包含大小写字母、数字、符号中的至少 3 类")
+        return value
+
 class UserLogin(UserBase):
-    password: str
+    password: str = Field(min_length=1, max_length=128)
 
 class UserOut(UserBase):
     id: int
@@ -22,7 +52,7 @@ class UserOut(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
 class UserProfileUpdate(BaseModel):
-    nickname: Optional[str] = None
+    nickname: Optional[str] = Field(default=None, max_length=64)
     avatar_url: Optional[str] = None
 
 class Token(BaseModel):

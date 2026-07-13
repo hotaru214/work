@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from main import app
 from app.database import Base, engine
@@ -17,11 +18,11 @@ def test_root():
 
 
 def test_auth_and_courses():
-    username = "smoke_user"
-    client.delete(f"/api/auth/me")  # iidempotent prep
-    r = client.post("/api/auth/register", json={"username": username, "password": "pw"})
-    assert r.status_code in (201, 400)
-    r = client.post("/api/auth/login", json={"username": username, "password": "pw"})
+    username = f"smoke_{uuid4().hex[:8]}"
+    password = "SmokePass123!"
+    r = client.post("/api/auth/register", json={"username": username, "password": password})
+    assert r.status_code == 201
+    r = client.post("/api/auth/login", json={"username": username, "password": password})
     assert r.status_code == 200
     token = r.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}

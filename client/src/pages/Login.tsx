@@ -41,6 +41,23 @@ function EyeIcon({ open }: { open: boolean }) {
   );
 }
 
+function getPasswordStrengthMessage(password: string): string {
+  if (!password) return "密码至少 8 位，建议包含大小写字母、数字和符号";
+  const value = password.trim();
+  const classes = [
+    /[a-z]/.test(value),
+    /[A-Z]/.test(value),
+    /\d/.test(value),
+    /[^A-Za-z0-9]/.test(value),
+  ].filter(Boolean).length;
+  if (value.length < 8) return "密码至少需要 8 位";
+  if (classes < 3) return "请至少包含大小写字母、数字、符号中的 3 类";
+  if (["12345678", "password", "password1", "qwerty123", "admin123", "demo123"].includes(value.toLowerCase())) {
+    return "这个密码太常见，请换一个更安全的密码";
+  }
+  return "";
+}
+
 export default function Login() {
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("demo");
@@ -63,6 +80,7 @@ export default function Login() {
   const [isSwitching, setIsSwitching] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const passwordStrengthMessage = mode === "register" ? getPasswordStrengthMessage(password) : "";
 
   useEffect(() => {
     if (!cardRef.current || !headlineRef.current || !headlineTextRef.current) {
@@ -163,6 +181,16 @@ export default function Login() {
     setLoading(true);
     try {
       if (mode === "register") {
+        if (!/^[A-Za-z0-9_-]{3,32}$/.test(username.trim())) {
+          setError("用户名需为 3-32 位字母、数字、下划线或短横线");
+          setLoading(false);
+          return;
+        }
+        if (passwordStrengthMessage) {
+          setError(passwordStrengthMessage);
+          setLoading(false);
+          return;
+        }
         if (password !== confirm) {
           setError("两次输入的密码不一致");
           setLoading(false);
@@ -173,9 +201,9 @@ export default function Login() {
           const upload = await api.uploadRegisterAvatar(avatarFile);
           avatarUrl = upload.avatar_url;
         }
-        await api.register(username, password, username, avatarUrl);
+        await api.register(username.trim().toLowerCase(), password, username.trim(), avatarUrl);
       }
-      const r = await api.login(username, password);
+      const r = await api.login(username.trim().toLowerCase(), password);
       setToken(r.access_token);
       // 清除所有缓存查询，确保新用户数据被重新获取
       queryClient.clear();
@@ -330,7 +358,12 @@ export default function Login() {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="请输入用户名（不可重复）"
                     autoComplete="username"
+                    minLength={3}
+                    maxLength={32}
                   />
+                  {mode === "register" && (
+                    <p className="text-xs text-slate-500">3-32 位字母、数字、下划线或短横线</p>
+                  )}
                 </div>
 
                 <div data-auth-animate className="space-y-2">
@@ -344,6 +377,7 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="请输入密码"
                     autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    maxLength={128}
                   />
                   <button
                     type="button"
@@ -355,6 +389,9 @@ export default function Login() {
                     <EyeIcon open={showPw} />
                   </button>
                   </div>
+                  {mode === "register" && passwordStrengthMessage && (
+                    <p className="text-xs text-amber-100/80">{passwordStrengthMessage}</p>
+                  )}
                 </div>
 
                 {mode === "register" && (

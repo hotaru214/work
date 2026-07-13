@@ -64,6 +64,23 @@ export class ApiError extends Error {
   get isNetwork(): boolean { return this.status === "network"; }
 }
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  const text = await res.text().catch(() => "");
+  if (!text) return fallback;
+  try {
+    const data = JSON.parse(text);
+    if (typeof data.detail === "string") return data.detail;
+    if (Array.isArray(data.detail)) {
+      const first = data.detail.find((item: any) => item?.msg);
+      if (first?.msg) return String(first.msg).replace(/^Value error,\s*/i, "");
+    }
+    if (typeof data.message === "string") return data.message;
+  } catch {
+    return text;
+  }
+  return fallback;
+}
+
 export async function apiFetch<T = any>(
   path: string,
   init: RequestInit = {}
@@ -81,11 +98,15 @@ export async function apiFetch<T = any>(
     throw new ApiError("network", "网络异常，请检查连接后重试", e);
   }
   if (res.status === 401) {
+    const message = await readErrorMessage(res, "登录已过期，请重新登录");
     setToken(null);
+    if (path === "/auth/login") {
+      throw new ApiError(401, message || "用户名或密码错误");
+    }
     if (!window.location.pathname.startsWith("/login")) {
       window.location.href = "/login";
     }
-    throw new ApiError(401, "登录已过期，请重新登录");
+    throw new ApiError(401, message || "登录已过期，请重新登录");
   }
   if (res.status === 403) {
     throw new ApiError(403, "无权限执行此操作");
@@ -97,8 +118,8 @@ export async function apiFetch<T = any>(
     throw new ApiError(res.status, "服务暂时不可用，请重试");
   }
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new ApiError(res.status, text || `请求失败 (${res.status})`);
+    const message = await readErrorMessage(res, `请求失败 (${res.status})`);
+    throw new ApiError(res.status, message);
   }
   if (res.status === 204) return undefined as any;
   return res.json();
