@@ -16,19 +16,20 @@ def _append_reference_sources(reply: str, context: list) -> str:
     if not context:
         return reply
 
-    lines = ["", "---", "### 参考来源"]
+    lines = ["", "---", "### 你的问题在资料中出现的位置"]
     seen: set[tuple[int, int]] = set()
     for index, snippet in enumerate(context, start=1):
         key = (snippet.material_id, snippet.chunk_index)
         if key in seen:
             continue
         seen.add(key)
-        excerpt = " ".join(snippet.text.split())[:160]
-        if len(" ".join(snippet.text.split())) > 160:
-            excerpt += "..."
+        excerpt = snippet.preview or " ".join(snippet.text.split())[:180]
+        matches = "、".join(snippet.matches) if snippet.matches else "未精确命中，展示相关片段"
         lines.append(
-            f"- [来源{index}] 课程《{snippet.course_name or '未命名课程'}》 / "
-            f"{snippet.filename} / 片段 {snippet.chunk_index}：{excerpt}"
+            f"- [位置{index}] 课程《{snippet.course_name or '未命名课程'}》 / "
+            f"{snippet.filename} / {snippet.location or f'片段 {snippet.chunk_index}'}\n"
+            f"  - 命中：{matches}\n"
+            f"  - 上下文：{excerpt}"
         )
     return reply.rstrip() + "\n".join(lines)
 

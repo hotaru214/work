@@ -98,7 +98,11 @@ class MaterialSearchResult(BaseModel):
     category: str = "other"
     uploaded_at: datetime
     chunk_index: int = 1
+    page_number: Optional[int] = None
+    location: str = ""
     text: str
+    preview: str = ""
+    matches: list[str] = []
     score: float = 0.0
 
 class ChatMessageIn(BaseModel):
@@ -159,6 +163,10 @@ class Snippet(BaseModel):
     filename: str
     text: str
     chunk_index: int = 1
+    page_number: Optional[int] = None
+    location: str = ""
+    preview: str = ""
+    matches: list[str] = []
 
 
 class StudyScheduleSlot(BaseModel):
