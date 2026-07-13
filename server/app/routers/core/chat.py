@@ -47,6 +47,14 @@ def update_session(session_id: int, course_id: int | None = None,
     return session
 
 
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user.id).first()
+    if session:
+        db.delete(session)
+        db.commit()
+
+
 @router.get("/sessions/{session_id}/messages", response_model=list[ChatMessageOut])
 def list_messages(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user.id).first()

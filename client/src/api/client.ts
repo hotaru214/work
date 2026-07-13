@@ -268,6 +268,7 @@ export const api = {
     params.append("title", title);
     return apiFetch(`/chat/sessions?${params.toString()}`, { method: "POST" });
   },
+  deleteSession: (sessionId: number) => apiFetch(`/chat/sessions/${sessionId}`, { method: "DELETE" }),
   listMessages: (sid: number) => apiFetch<any[]>(`/chat/sessions/${sid}/messages`),
   publishSession: (sessionId: number, title: string, tagIds: string = "") => apiFetch<any>(`/chat/sessions/${sessionId}/publish?title=${encodeURIComponent(title)}&tag_ids=${tagIds}`, { method: "POST" }),
   sessionRelatedPosts: (sessionId: number) => apiFetch<any[]>(`/chat/sessions/${sessionId}/related`),
