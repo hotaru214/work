@@ -166,19 +166,15 @@ export default function Chat() {
               <p className="mt-0.5 text-xs leading-5 text-slate-500">围绕课程和资料继续提问</p>
             </div>
           </div>
-          <motion.button
+          <PrimaryButton
             type="button"
             onClick={newSession}
             disabled={creatingSession}
-            whileHover={creatingSession ? undefined : { y: -1 }}
-            whileTap={creatingSession ? undefined : { scale: 0.98 }}
-            className="group flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 w-full rounded-xl"
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/12 transition group-hover:rotate-90">
-              <Plus size={15} />
-            </span>
+            <Plus size={15} />
             {creatingSession ? "创建中…" : "新对话"}
-          </motion.button>
+          </PrimaryButton>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto p-3">

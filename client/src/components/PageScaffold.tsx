@@ -1,3 +1,4 @@
+import { Children, isValidElement } from "react";
 import type { ComponentType, HTMLAttributes, ReactNode, SVGProps } from "react";
 import { AlertTriangle, Inbox } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
@@ -159,9 +160,8 @@ export function MetricCard({
   };
 
   return (
-    <Surface className="group relative overflow-hidden p-4 transition duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-lift)]">
-      <span className="pointer-events-none absolute inset-x-4 top-0 h-px scale-x-0 bg-gradient-to-r from-transparent via-slate-500/60 to-transparent transition duration-300 group-hover:scale-x-100" />
-      <span className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-gradient-brand-soft opacity-0 blur-2xl transition duration-500 group-hover:opacity-100" />
+    <Surface className="relative overflow-hidden p-4">
+      <span className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-slate-200/80 to-transparent" />
       <div className="relative flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-medium text-slate-500">{label}</div>
@@ -173,7 +173,7 @@ export function MetricCard({
       {typeof progress === "number" && (
         <div className="relative mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
           <div
-            className={cn("h-full rounded-full transition-[width] duration-700 ease-out group-hover:brightness-110", barTones[tone])}
+            className={cn("h-full rounded-full transition-[width] duration-700 ease-out", barTones[tone])}
             style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
           />
         </div>
@@ -223,21 +223,41 @@ export function PrimaryButton({
   tone = "brand",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "brand" | "danger" }) {
-  const toneClass =
+  const { hoverIcon, iconOnly, label } = splitButtonContent(children);
+  const iconOnlyToneClass =
     tone === "danger"
-      ? "bg-rose-600 shadow-[0_6px_18px_rgba(225,29,72,0.28)] hover:bg-rose-500 hover:shadow-[0_10px_28px_rgba(225,29,72,0.4)] focus-visible:ring-rose-400"
-      : "bg-gradient-brand shadow-[0_6px_18px_rgba(15,23,42,0.24)] hover:shadow-[0_10px_28px_rgba(15,23,42,0.34)] focus-visible:ring-slate-500";
+      ? "border-rose-200 bg-white text-rose-600 shadow-sm hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:ring-rose-300"
+      : "border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:ring-slate-300";
+  const toneClass =
+    iconOnly
+      ? iconOnlyToneClass
+      : tone === "danger"
+        ? "border-rose-500 bg-white text-rose-600 shadow-sm hover:border-rose-500 hover:text-white hover:shadow-[0_10px_28px_rgba(225,29,72,0.26)] focus-visible:ring-rose-300"
+        : "border-slate-950 bg-white text-slate-950 shadow-sm hover:border-slate-950 hover:text-white hover:shadow-[0_10px_28px_rgba(15,23,42,0.24)] focus-visible:ring-slate-300";
+  const fillClass = tone === "danger" ? "bg-rose-500" : "bg-slate-950";
   return (
     <button
       className={cn(
-        "group/btn relative inline-flex h-10 items-center justify-center gap-2 overflow-hidden rounded-lg px-4 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
+        "group/btn relative inline-flex h-10 items-center justify-center gap-2 overflow-hidden rounded-lg border px-4 text-sm font-medium transition duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
         toneClass,
         className
       )}
       {...props}
     >
-      <span className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.45)_50%,transparent_75%)] transition-transform duration-700 group-hover/btn:translate-x-full" />
-      <span className="relative inline-flex items-center gap-2">{children}</span>
+      {iconOnly ? (
+        <span className="relative z-10 inline-flex items-center gap-2">{children}</span>
+      ) : (
+        <>
+          <span className={cn("relative z-10 h-2 w-2 shrink-0 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/btn:scale-[120] group-focus-visible/btn:scale-[120]", fillClass)} />
+          <span className="relative z-10 inline-flex items-center gap-2 transition-all duration-300 group-hover/btn:translate-x-12 group-hover/btn:opacity-0">
+            {label}
+          </span>
+          <span className="absolute inset-0 z-20 flex translate-x-10 items-center justify-center gap-2 text-white opacity-0 transition-all duration-300 group-hover/btn:translate-x-0 group-hover/btn:opacity-100">
+            <span>{label}</span>
+            {hoverIcon}
+          </span>
+        </>
+      )}
     </button>
   );
 }
@@ -247,17 +267,54 @@ export function SecondaryButton({
   className,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { hoverIcon, iconOnly, label } = splitButtonContent(children);
+  const classNameText = className || "";
+  const fillClass = classNameText.includes("rose") || classNameText.includes("red")
+    ? "bg-rose-500"
+    : classNameText.includes("violet")
+      ? "bg-violet-500"
+      : classNameText.includes("blue")
+        ? "bg-blue-500"
+        : classNameText.includes("emerald") || classNameText.includes("green")
+          ? "bg-emerald-500"
+          : "bg-slate-950";
   return (
     <button
       className={cn(
-        "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
+        iconOnly
+          ? "relative inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          : "group/btn relative inline-flex h-10 items-center justify-center gap-2 overflow-hidden rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:text-white hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
         className
       )}
       {...props}
     >
-      {children}
+      {iconOnly ? (
+        <span className="relative z-10 inline-flex items-center gap-2">{children}</span>
+      ) : (
+        <>
+          <span className={cn("relative z-10 h-2 w-2 shrink-0 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/btn:scale-[120] group-focus-visible/btn:scale-[120]", fillClass)} />
+          <span className="relative z-10 inline-flex items-center gap-2 transition-all duration-300 group-hover/btn:translate-x-12 group-hover/btn:opacity-0">
+            {label}
+          </span>
+          <span className="absolute inset-0 z-20 flex translate-x-10 items-center justify-center gap-2 text-white opacity-0 transition-all duration-300 group-hover/btn:translate-x-0 group-hover/btn:opacity-100">
+            <span>{label}</span>
+            {hoverIcon}
+          </span>
+        </>
+      )}
     </button>
   );
+}
+
+function splitButtonContent(children: ReactNode) {
+  const parts = Children.toArray(children).filter((part) => !(typeof part === "string" && part.trim() === ""));
+  const hasLeadingIcon = parts.length > 1 && isValidElement(parts[0]);
+
+  return {
+    hoverIcon: hasLeadingIcon ? parts[0] : null,
+    iconOnly: parts.length === 1 && isValidElement(parts[0]),
+    label: hasLeadingIcon ? parts.slice(1) : parts,
+  };
 }
 
 export function TextField(props: React.InputHTMLAttributes<HTMLInputElement>) {

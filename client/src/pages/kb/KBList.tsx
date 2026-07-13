@@ -20,7 +20,6 @@ import { useCourses, useKbRoots, useKbTrash, usePrefetchKbNote } from "../../hoo
 import {
   EmptyState,
   IconBadge,
-  MetricCard,
   PageShell,
   PrimaryButton,
   SecondaryButton,
@@ -124,7 +123,10 @@ export default function KBList() {
       description="管理笔记根目录、资料结构和回收站，后续可以进入知识库继续编辑正文。"
       actions={
         <>
-          <SecondaryButton onClick={openTrash}>
+          <SecondaryButton
+            onClick={openTrash}
+            className="border-rose-200 text-rose-600 hover:border-rose-500"
+          >
             <Trash2 size={16} />
             回收站
           </SecondaryButton>
@@ -153,12 +155,6 @@ export default function KBList() {
           setShowModal(true);
         }}
       />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <MetricCard label="知识库" value={notes.length} hint="根目录数量" icon={BookOpen} tone="violet" />
-        <MetricCard label="子节点" value={totalChildren} hint="已建立的内容结构" icon={Layers3} tone="blue" />
-        <MetricCard label="最近更新" value={recentlyUpdated ? fmtDate(recentlyUpdated.dateModified) : "暂无"} hint={recentlyUpdated?.title || "还没有编辑记录"} icon={FileText} tone="emerald" />
-      </div>
 
       {loading ? (
         <CardGridSkeleton cards={8} />
@@ -466,15 +462,18 @@ function KnowledgeOverview({
           <h2 className="mt-4 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
             把零散笔记整理成可以复盘的结构。
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-            当前有 {total} 个知识库、{totalChildren} 个子节点。优先维护结构最完整和最近更新的内容，避免资料只堆不复盘。
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-500">
-            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 shadow-sm">根目录 {total}</span>
-            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 shadow-sm">子节点 {totalChildren}</span>
-            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 shadow-sm">
-              {totalChildren > total ? "已有层级结构" : "结构仍需补充"}
-            </span>
+          <div className="mt-6 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
+            <KnowledgeHeroStat label="知识库" value={total} hint="根目录数量" />
+            <KnowledgeHeroStat
+              label="子节点"
+              value={totalChildren}
+              hint={totalChildren > total ? "已有层级结构" : "结构仍需补充"}
+            />
+            <KnowledgeHeroStat
+              label="最近更新"
+              value={recentlyUpdated ? fmtDate(recentlyUpdated.dateModified) : "暂无"}
+              hint={recentlyUpdated?.title || "还没有编辑记录"}
+            />
           </div>
           {total === 0 && (
             <PrimaryButton type="button" onClick={onCreate} className="mt-5">
@@ -520,6 +519,16 @@ function KnowledgeOverview({
         </div>
       </div>
     </SpotlightCard>
+  );
+}
+
+function KnowledgeHeroStat({ label, value, hint }: { label: string; value: React.ReactNode; hint: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/68 px-4 py-3 shadow-sm backdrop-blur">
+      <div className="text-xs font-medium text-slate-400">{label}</div>
+      <div className="mt-1 truncate text-2xl font-semibold tracking-tight text-slate-950">{value}</div>
+      <div className="mt-1 truncate text-xs text-slate-500">{hint}</div>
+    </div>
   );
 }
 

@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowRight,
@@ -10,7 +11,6 @@ import {
   MessageCircle,
   Sparkles,
   Route,
-  type LucideIcon,
 } from "lucide-react";
 import { useDashboard, useToggleTask } from "../hooks/api";
 import { useMutationToast } from "../components/ui/toast";
@@ -19,7 +19,6 @@ import {
   EmptyState,
   ErrorState,
   IconBadge,
-  MetricCard,
   PageShell,
   PrimaryButton,
   SectionTitle,
@@ -89,50 +88,30 @@ export default function Dashboard() {
       title="学习仪表盘"
       eyebrow={today}
       description="把今日待办、课程进展和最近对话放在一个工作台里，减少来回切换。"
-      actions={
-        <PrimaryButton
-          onMouseEnter={() => preloadPage("plan")}
-          onFocus={() => preloadPage("plan")}
-          onClick={() => navigate("/plan")}
-        >
-          <Route size={16} />
-          新建计划
-        </PrimaryButton>
-      }
     >
       <LearningCommandCenter
         todayTasks={data.today_tasks.length}
         upcomingTasks={data.upcoming_tasks.length}
         recentSessions={data.recent_sessions.length}
-        activePlans={data.active_plans.length}
+        courseCount={data.course_count}
+        materialCount={data.material_count}
+        completionRate={rate}
+        completedTasks={data.completed_tasks}
+        totalTasks={totalTasks}
+        planCount={data.plan_count}
         onTodayAction={() => {
           if (data.today_tasks.length) scrollToSection("dashboard-today");
-          else navigate("/plan");
+          else scrollToSection("dashboard-plans");
         }}
         onUpcomingAction={() => {
           if (data.upcoming_tasks.length) scrollToSection("dashboard-upcoming");
-          else navigate("/plan");
+          else scrollToSection("dashboard-plans");
         }}
         onRecentAction={() => {
           if (data.recent_sessions.length) scrollToSection("dashboard-recent");
           else navigate("/chat");
         }}
-        onPlanAction={() => navigate("/plan")}
       />
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="课程" value={<MetricCounter value={data.course_count} />} hint="正在管理的课程" icon={BookOpen} tone="blue" />
-        <MetricCard label="学习资料" value={<MetricCounter value={data.material_count} />} hint="已归档的课程资料" icon={FileText} tone="emerald" />
-        <MetricCard
-          label="任务完成率"
-          value={<MetricCounter value={rate} suffix="%" />}
-          hint={`${data.completed_tasks}/${totalTasks} 个任务已完成`}
-          icon={CheckCircle2}
-          tone="violet"
-          progress={rate}
-        />
-        <MetricCard label="学习计划" value={<MetricCounter value={data.plan_count} />} hint="活跃计划与目标" icon={CalendarClock} tone="amber" />
-      </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-6">
@@ -221,14 +200,16 @@ export default function Dashboard() {
               title={`学习计划 (${data.active_plans.length})`}
               description="正在推进的目标和每日投入。"
               action={
-                <Link
-                  className="text-xs font-medium text-slate-500 hover:text-slate-950"
-                  to="/plan"
-                  onMouseEnter={() => preloadPage("plan")}
-                  onFocus={() => preloadPage("plan")}
-                >
-                  查看全部
-                </Link>
+                data.active_plans.length > 0 ? (
+                  <Link
+                    className="text-xs font-medium text-slate-500 hover:text-slate-950"
+                    to="/plan"
+                    onMouseEnter={() => preloadPage("plan")}
+                    onFocus={() => preloadPage("plan")}
+                  >
+                    管理全部
+                  </Link>
+                ) : null
               }
             />
             {data.active_plans.length === 0 ? (
@@ -323,20 +304,28 @@ function LearningCommandCenter({
   todayTasks,
   upcomingTasks,
   recentSessions,
-  activePlans,
+  courseCount,
+  materialCount,
+  completionRate,
+  completedTasks,
+  totalTasks,
+  planCount,
   onTodayAction,
   onUpcomingAction,
   onRecentAction,
-  onPlanAction,
 }: {
   todayTasks: number;
   upcomingTasks: number;
   recentSessions: number;
-  activePlans: number;
+  courseCount: number;
+  materialCount: number;
+  completionRate: number;
+  completedTasks: number;
+  totalTasks: number;
+  planCount: number;
   onTodayAction: () => void;
   onUpcomingAction: () => void;
   onRecentAction: () => void;
-  onPlanAction: () => void;
 }) {
   const focus =
     todayTasks > 0
@@ -359,29 +348,40 @@ function LearningCommandCenter({
               description: "当前没有紧急任务，可以补充课程资料或整理知识库结构。",
           };
 
-  const actions = [
+  const metrics = [
     {
+      label: "课程",
+      value: <MetricCounter value={courseCount} />,
+      hint: "正在管理的课程",
+      icon: BookOpen,
+      tone: "blue" as const,
+    },
+    {
+      label: "学习资料",
+      value: <MetricCounter value={materialCount} />,
+      hint: "已归档的课程资料",
+      icon: FileText,
+      tone: "emerald" as const,
+    },
+    {
+      label: "任务完成率",
+      value: <MetricCounter value={completionRate} suffix="%" />,
+      hint: `${completedTasks}/${totalTasks} 个任务已完成`,
       icon: CheckCircle2,
-      title: todayTasks > 0 ? "处理今日待办" : "生成今日节奏",
-      description: todayTasks > 0 ? `${todayTasks} 个任务等待完成` : "当前无待办，去计划页拆解任务",
-      onClick: onTodayAction,
-      preload: () => !todayTasks && preloadPage("plan"),
+      tone: "violet" as const,
+      progress: completionRate,
     },
     {
-      icon: Clock3,
-      title: upcomingTasks > 0 ? "检查近期截止" : "补充截止安排",
-      description: upcomingTasks > 0 ? `${upcomingTasks} 个任务需要留意` : "给计划设置明确的截止时间",
-      onClick: onUpcomingAction,
-      preload: () => !upcomingTasks && preloadPage("plan"),
-    },
-    {
-      icon: MessageCircle,
-      title: recentSessions > 0 ? "继续最近对话" : "开启课程对话",
-      description: recentSessions > 0 ? "从最近的问题继续整理" : "让助手帮你梳理知识点",
-      onClick: onRecentAction,
-      preload: () => preloadPage("chat"),
+      label: "学习计划",
+      value: <MetricCounter value={planCount} />,
+      hint: "活跃计划与目标",
+      icon: CalendarClock,
+      tone: "amber" as const,
     },
   ];
+
+  const primaryAction = todayTasks > 0 ? onTodayAction : upcomingTasks > 0 ? onUpcomingAction : onRecentAction;
+  const primaryLabel = todayTasks > 0 ? "进入待办" : upcomingTasks > 0 ? "查看截止" : "继续对话";
 
   return (
     <SpotlightCard
@@ -392,7 +392,7 @@ function LearningCommandCenter({
       <div className="absolute inset-0 overflow-hidden rounded-3xl">
         <span className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(15,23,42,0.055),transparent_28rem),linear-gradient(135deg,rgba(255,255,255,0.78),rgba(248,250,252,0.48)_58%,rgba(226,232,240,0.32))]" />
       </div>
-      <div className="relative grid gap-5 p-5 text-slate-950 lg:grid-cols-[minmax(0,1fr)_390px] lg:items-center lg:p-6">
+      <div className="relative grid gap-6 p-5 text-slate-950 lg:grid-cols-[minmax(0,1fr)_460px] lg:items-center lg:p-6">
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-500 shadow-sm backdrop-blur">
             <Sparkles size={14} />
@@ -405,41 +405,28 @@ function LearningCommandCenter({
             {focus.description}
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <motion.button
+            <PrimaryButton
               type="button"
-              whileHover={{ y: -1 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={todayTasks > 0 ? onTodayAction : onPlanAction}
-              onMouseEnter={() => !todayTasks && preloadPage("plan")}
-              onFocus={() => !todayTasks && preloadPage("plan")}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+              onClick={primaryAction}
+              onMouseEnter={() => !todayTasks && !upcomingTasks && preloadPage("chat")}
+              onFocus={() => !todayTasks && !upcomingTasks && preloadPage("chat")}
             >
-              {todayTasks > 0 ? "进入待办" : "创建计划"}
               <ArrowRight size={15} />
-            </motion.button>
-            <motion.button
-              type="button"
-              whileHover={{ y: -1 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={onPlanAction}
-              onMouseEnter={() => preloadPage("plan")}
-              onFocus={() => preloadPage("plan")}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white/80 px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950"
-            >
-              查看计划 {activePlans > 0 ? activePlans : ""}
-            </motion.button>
+              {primaryLabel}
+            </PrimaryButton>
           </div>
         </div>
 
-        <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white/68 p-3 shadow-sm backdrop-blur">
-          {actions.map((item, index) => (
-            <DashboardActionCard
-              key={item.title}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {metrics.map((item, index) => (
+            <DashboardMetricTile
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              hint={item.hint}
               icon={item.icon}
-              title={item.title}
-              description={item.description}
-              onClick={item.onClick}
-              onPreview={item.preload}
+              tone={item.tone}
+              progress={item.progress}
               index={index}
             />
           ))}
@@ -449,43 +436,49 @@ function LearningCommandCenter({
   );
 }
 
-function DashboardActionCard({
+function DashboardMetricTile({
+  label,
+  value,
+  hint,
   icon: Icon,
-  title,
-  description,
-  onClick,
-  onPreview,
+  tone,
+  progress,
   index,
 }: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  onClick: () => void;
-  onPreview?: () => void;
+  label: string;
+  value: ReactNode;
+  hint: string;
+  icon: typeof BookOpen;
+  tone: "blue" | "emerald" | "violet" | "amber";
+  progress?: number;
   index: number;
 }) {
   return (
-    <motion.button
-      type="button"
-      initial={{ opacity: 0, x: 10 }}
-      animate={{ opacity: 1, x: 0 }}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, delay: Math.min(index * 0.04, 0.16) }}
-      whileHover={{ x: 3 }}
-      whileTap={{ scale: 0.985 }}
-      onClick={onClick}
-      onMouseEnter={onPreview}
-      onFocus={onPreview}
-      className="group flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white/78 p-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-white hover:shadow-md"
+      className="rounded-2xl border border-slate-200/80 bg-white/72 p-4 shadow-sm backdrop-blur"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white shadow-sm transition group-hover:-rotate-3 group-hover:scale-105">
-        <Icon size={17} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-slate-950">{title}</span>
-        <span className="mt-0.5 block truncate text-xs text-slate-500">{description}</span>
-      </span>
-      <ArrowRight size={15} className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-950" />
-    </motion.button>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-slate-500">{label}</div>
+          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</div>
+        </div>
+        <IconBadge icon={Icon} tone={tone} />
+      </div>
+      <div className="mt-3 text-sm text-slate-500">{hint}</div>
+      {progress !== undefined && (
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+          <motion.div
+            className="h-full rounded-full bg-violet-500"
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          />
+        </div>
+      )}
+    </motion.div>
   );
 }
 

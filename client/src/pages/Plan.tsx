@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarClock, Clock3, Plus, Route, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,7 +22,6 @@ import {
   EmptyState,
   ErrorState,
   IconBadge,
-  MetricCard,
   PageShell,
   PrimaryButton,
   SecondaryButton,
@@ -172,30 +172,12 @@ export default function Plan() {
         plans={weeklyQueuePlans}
         totalMinutes={totalMinutes}
         scheduledRate={scheduledRate}
+        planCount={plans.length}
+        nextDeadline={nextDeadline}
         weekDeadlineCount={weekDeadlineCount}
         unscheduledCount={unscheduledCount}
         onFocusPlan={focusPlanInList}
       />
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
-        <Surface className="flex items-center gap-5 p-5">
-          <div className="relative shrink-0">
-            <ProgressRing value={scheduledRate} className="size-24 text-lg" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs font-medium text-slate-500">已排期占比</div>
-            <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{scheduledRate}%</div>
-            <p className="mt-1.5 text-xs leading-5 text-slate-500">
-              {plans.length - unscheduledCount}/{plans.length} 个计划已设置截止时间
-            </p>
-          </div>
-        </Surface>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <MetricCard label="计划数量" value={plans.length} hint="当前正在追踪" icon={Route} tone="blue" />
-          <MetricCard label="每日投入" value={`${totalMinutes} 分钟`} hint="所有计划累计" icon={Clock3} tone="emerald" />
-          <MetricCard label="最近截止" value={nextDeadline ? formatDate(nextDeadline.deadline) : "未设置"} hint={`${weekDeadlineCount} 个 7 天内到期`} icon={CalendarClock} tone="amber" />
-        </div>
-      </div>
 
       <div className="space-y-4">
           {pageErrorMessage && <ErrorState message={pageErrorMessage} />}
@@ -357,6 +339,8 @@ function PlanCommandPanel({
   plans,
   totalMinutes,
   scheduledRate,
+  planCount,
+  nextDeadline,
   weekDeadlineCount,
   unscheduledCount,
   onFocusPlan,
@@ -364,6 +348,8 @@ function PlanCommandPanel({
   plans: any[];
   totalMinutes: number;
   scheduledRate: number;
+  planCount: number;
+  nextDeadline?: any;
   weekDeadlineCount: number;
   unscheduledCount: number;
   onFocusPlan: (plan: any) => void;
@@ -382,6 +368,38 @@ function PlanCommandPanel({
         : [<PlanStackEmpty key="empty" />],
     [onFocusPlan, plans]
   );
+  const scheduledCount = Math.max(0, planCount - unscheduledCount);
+  const metrics = [
+    {
+      label: "已排期占比",
+      value: `${scheduledRate}%`,
+      hint: `${scheduledCount}/${planCount} 个计划已设置截止时间`,
+      icon: null,
+      tone: "slate" as const,
+      progress: scheduledRate,
+    },
+    {
+      label: "计划数量",
+      value: planCount,
+      hint: "当前正在追踪",
+      icon: Route,
+      tone: "blue" as const,
+    },
+    {
+      label: "每日投入",
+      value: `${totalMinutes} 分钟`,
+      hint: "所有计划累计",
+      icon: Clock3,
+      tone: "emerald" as const,
+    },
+    {
+      label: "最近截止",
+      value: nextDeadline ? formatDate(nextDeadline.deadline) : "未设置",
+      hint: `${weekDeadlineCount} 个 7 天内到期`,
+      icon: CalendarClock,
+      tone: "amber" as const,
+    },
+  ];
 
   return (
     <SpotlightCard
@@ -392,32 +410,20 @@ function PlanCommandPanel({
       <div className="absolute inset-0 overflow-hidden rounded-3xl">
         <span className="absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(15,23,42,0.06),transparent_28rem),linear-gradient(135deg,rgba(255,255,255,0.72),rgba(248,250,252,0.42)_55%,rgba(226,232,240,0.36))]" />
       </div>
-      <div className="relative grid gap-6 p-5 text-slate-950 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-6">
-        <div className="min-w-0">
-          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-500 shadow-sm">
-            <Route size={14} />
-            学习计划中枢
-          </div>
-          <h2 className="mt-4 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
-            先看一周内到期的计划，再把要处理的目标定位出来。
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-            当前累计每日投入 {totalMinutes} 分钟，{scheduledRate}% 的计划已经排期，{weekDeadlineCount} 个目标在 7 天内到期。
-          </p>
-          <div className="mt-5 grid max-w-xl grid-cols-1 gap-2 text-xs text-slate-500 sm:grid-cols-3">
-            <span className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2">
-              <span className="block text-slate-400">已排期</span>
-              <span className="mt-1 block font-semibold text-slate-900">{scheduledRate}%</span>
-            </span>
-            <span className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2">
-              <span className="block text-slate-400">本周到期</span>
-              <span className="mt-1 block font-semibold text-slate-900">{weekDeadlineCount} 个</span>
-            </span>
-            <span className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2">
-              <span className="block text-slate-400">未设截止</span>
-              <span className="mt-1 block font-semibold text-slate-900">{unscheduledCount} 个</span>
-            </span>
-          </div>
+      <div className="relative grid gap-6 p-5 text-slate-950 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center lg:p-6">
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+          {metrics.map((item, index) => (
+            <PlanMetricTile
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              hint={item.hint}
+              icon={item.icon}
+              tone={item.tone}
+              progress={item.progress}
+              index={index}
+            />
+          ))}
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm backdrop-blur">
@@ -439,6 +445,48 @@ function PlanCommandPanel({
         </div>
       </div>
     </SpotlightCard>
+  );
+}
+
+function PlanMetricTile({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  tone,
+  progress,
+  index,
+}: {
+  label: string;
+  value: ReactNode;
+  hint: string;
+  icon: typeof Route | null;
+  tone: "slate" | "blue" | "emerald" | "amber";
+  progress?: number;
+  index: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22, delay: Math.min(index * 0.04, 0.16) }}
+      className="rounded-2xl border border-slate-200/80 bg-white/72 p-4 shadow-sm backdrop-blur"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-slate-500">{label}</div>
+          <div className="mt-2 truncate text-2xl font-semibold tracking-tight text-slate-950">{value}</div>
+        </div>
+        {Icon ? (
+          <IconBadge icon={Icon} tone={tone} />
+        ) : (
+          <div className="shrink-0 rounded-full bg-white/95 p-1 shadow-sm">
+            <ProgressRing value={progress ?? 0} className="size-12 text-xs" />
+          </div>
+        )}
+      </div>
+      <div className="mt-3 text-sm text-slate-500">{hint}</div>
+    </motion.div>
   );
 }
 
@@ -471,16 +519,16 @@ function PlanStackCard({ plan, onFocus }: { plan: any; onFocus: () => void }) {
           <div className="mt-1 font-medium text-slate-800">{plan.daily_minutes} 分钟</div>
         </div>
       </div>
-      <button
+      <PrimaryButton
         type="button"
         onClick={(event) => {
           event.stopPropagation();
           onFocus();
         }}
-        className="mt-3 inline-flex h-9 items-center justify-center rounded-lg bg-slate-950 px-3 text-xs font-medium text-white shadow-sm transition hover:bg-slate-800"
+        className="mt-3 h-9 px-3 text-xs"
       >
         定位列表
-      </button>
+      </PrimaryButton>
     </div>
   );
 }

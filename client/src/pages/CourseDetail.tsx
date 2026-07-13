@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowRight,
-  BookOpen,
   Download,
   FileArchive,
   FileAudio,
@@ -38,7 +37,6 @@ import { FileUpload } from "../components/ui/file-upload";
 import {
   EmptyState,
   IconBadge,
-  MetricCard,
   PageShell,
   PrimaryButton,
   SecondaryButton,
@@ -266,19 +264,12 @@ export default function CourseDetail() {
         recentMaterial={recentMaterial}
         dominantType={dominantType}
         startingChat={startingChat}
-        onUpload={() => setUploadOpen(true)}
         onStartChat={startChat}
         onOpenForum={() => navigate(`/forum?course_id=${courseId}`)}
         onCreatePost={() => navigate(`/forum/new?course_id=${courseId}`)}
         onFocusMaterials={focusMaterials}
         onPreviewRecent={() => recentMaterial && handlePreview(recentMaterial)}
       />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <MetricCard label="学习资料" value={materials.length} hint="已上传文件" icon={FileText} tone="blue" />
-        <MetricCard label="相关讨论" value={forumPosts.length} hint="课程关联帖子" icon={MessageCircle} tone="violet" />
-        <MetricCard label="授课信息" value={course.teacher || "未设置"} hint={course.semester || "未设置学期"} icon={BookOpen} tone="emerald" />
-      </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(300px,340px)]">
         <div className="space-y-6">
@@ -288,10 +279,12 @@ export default function CourseDetail() {
                 <h2 className="text-sm font-semibold text-slate-950">学习资料</h2>
                 <p className="mt-1 text-xs text-slate-500">上传课件、笔记和参考文件，支持常见格式在线预览。</p>
               </div>
-              <PrimaryButton type="button" onClick={() => setUploadOpen(true)}>
-                <Upload size={16} />
-                上传资料
-              </PrimaryButton>
+              {materials.length > 0 && (
+                <PrimaryButton type="button" onClick={() => setUploadOpen(true)}>
+                  <Upload size={16} />
+                  上传资料
+                </PrimaryButton>
+              )}
             </div>
 
             <Dialog open={uploadOpen} onOpenChange={handleUploadOpenChange}>
@@ -658,7 +651,6 @@ function CourseCommandPanel({
   recentMaterial,
   dominantType,
   startingChat,
-  onUpload,
   onStartChat,
   onOpenForum,
   onCreatePost,
@@ -671,7 +663,6 @@ function CourseCommandPanel({
   recentMaterial?: any;
   dominantType: FileType | null;
   startingChat: boolean;
-  onUpload: () => void;
   onStartChat: () => void;
   onOpenForum: () => void;
   onCreatePost: () => void;
@@ -683,8 +674,8 @@ function CourseCommandPanel({
       ? {
           title: "先把课程资料归档进来。",
           description: "上传课件、讲义或课堂笔记后，课程对话和讨论才有可追溯的上下文。",
-          primary: "上传资料",
-          primaryAction: onUpload,
+          primary: "",
+          primaryAction: undefined,
         }
       : discussionCount > 0
         ? {
@@ -700,19 +691,18 @@ function CourseCommandPanel({
             primaryAction: onStartChat,
           };
 
-  const recentType = recentMaterial ? getFileType(recentMaterial.filename) : null;
   const actionCards = [
-    {
-      icon: recentType ? iconForType(recentType) : Upload,
-      title: recentMaterial ? "预览最近资料" : "上传首份资料",
-      description: recentMaterial ? recentMaterial.filename : "把课件或笔记放进课程资料库",
-      onClick: recentMaterial ? onPreviewRecent : onUpload,
+    recentMaterial && {
+      icon: iconForType(getFileType(recentMaterial.filename)),
+      title: "预览最近资料",
+      description: recentMaterial.filename,
+      onClick: onPreviewRecent,
     },
-    {
+    dominantType && {
       icon: dominantType ? iconForType(dominantType) : Layers3,
-      title: dominantType ? `筛选${fileTypeLabel(dominantType)}资料` : "整理资料类型",
-      description: dominantType ? "跳到资料列表并应用当前主类型" : "上传后按类型快速筛选",
-      onClick: () => dominantType ? onFocusMaterials(dominantType) : onUpload(),
+      title: `筛选${fileTypeLabel(dominantType)}资料`,
+      description: "跳到资料列表并应用当前主类型",
+      onClick: () => onFocusMaterials(dominantType),
     },
     {
       icon: MessageCircle,
@@ -720,7 +710,12 @@ function CourseCommandPanel({
       description: discussionCount > 0 ? `${discussionCount} 条相关帖子可继续复盘` : "把课程问题沉淀到讨论区",
       onClick: discussionCount > 0 ? onOpenForum : onCreatePost,
     },
-  ];
+  ].filter(Boolean) as Array<{
+    icon: LucideIcon;
+    title: string;
+    description: string;
+    onClick: () => void;
+  }>;
 
   return (
     <SpotlightCard
@@ -738,30 +733,26 @@ function CourseCommandPanel({
             课程工作台
           </div>
           <h2 className="mt-4 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">{focus.title}</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">{focus.description}</p>
-          <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-500">
-            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 shadow-sm">
-              {course.teacher || "未设置教师"}
-            </span>
-            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 shadow-sm">
-              {course.semester || "未设置学期"}
-            </span>
-            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 shadow-sm">
-              {materialCount > 0 ? `资料 ${materialCount}` : "暂无资料"}
-            </span>
+          <div className="mt-6 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
+            <CourseDetailHeroStat label="学习资料" value={materialCount} hint="已上传文件" />
+            <CourseDetailHeroStat label="相关讨论" value={discussionCount} hint="课程关联帖子" />
+            <CourseDetailHeroStat
+              label="授课信息"
+              value={course.teacher || "未设置"}
+              hint={course.semester || "未设置学期"}
+            />
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
-            <motion.button
-              type="button"
-              whileHover={{ y: -1 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={focus.primaryAction}
-              disabled={startingChat && focus.primary === "开始对话"}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {startingChat && focus.primary === "开始对话" ? "创建中..." : focus.primary}
-              <ArrowRight size={15} />
-            </motion.button>
+            {focus.primary && focus.primaryAction && (
+              <PrimaryButton
+                type="button"
+                onClick={focus.primaryAction}
+                disabled={startingChat && focus.primary === "开始对话"}
+              >
+                <ArrowRight size={15} />
+                {startingChat && focus.primary === "开始对话" ? "创建中..." : focus.primary}
+              </PrimaryButton>
+            )}
             <motion.button
               type="button"
               whileHover={{ y: -1 }}
@@ -790,6 +781,16 @@ function CourseCommandPanel({
         </div>
       </div>
     </SpotlightCard>
+  );
+}
+
+function CourseDetailHeroStat({ label, value, hint }: { label: string; value: React.ReactNode; hint: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/68 px-4 py-3 shadow-sm backdrop-blur">
+      <div className="text-xs font-medium text-slate-400">{label}</div>
+      <div className="mt-1 truncate text-2xl font-semibold tracking-tight text-slate-950">{value}</div>
+      <div className="mt-1 truncate text-xs text-slate-500">{hint}</div>
+    </div>
   );
 }
 
@@ -845,21 +846,24 @@ function MaterialRow({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -12 }}
-      transition={{ duration: 0.22, delay: Math.min(index * 0.025, 0.14) }}
-      whileHover={{ backgroundColor: "#f8fafc" }}
-      className="flex items-center gap-3 px-5 py-3"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0, transition: { duration: 0.2, delay: Math.min(index * 0.025, 0.14) } }}
+      exit={{ opacity: 0, x: -12, transition: { duration: 0.16 } }}
+      whileHover={{ x: 4, transition: { duration: 0.16, ease: "easeOut" } }}
+      whileTap={{ scale: 0.998 }}
+      className="group relative flex items-center gap-3 overflow-hidden px-5 py-3 transition-colors duration-150 hover:bg-slate-50/80 focus-within:bg-slate-50/80"
     >
-      <IconBadge icon={Icon} tone="slate" />
+      <span className="pointer-events-none absolute inset-y-2 left-0 w-1 rounded-r-full bg-slate-950 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100" />
+      <span className="shrink-0 transition duration-200 group-hover:-rotate-2 group-hover:scale-105">
+        <IconBadge icon={Icon} tone="slate" />
+      </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-slate-900">{material.filename}</div>
-        <div className="mt-0.5 text-xs text-slate-400">{fileTypeLabel(type)} · {new Date(material.uploaded_at).toLocaleString("zh-CN")}</div>
+        <div className="truncate text-sm font-medium text-slate-900 transition-colors group-hover:text-slate-950">{material.filename}</div>
+        <div className="mt-0.5 text-xs text-slate-400 transition-colors group-hover:text-slate-500">{fileTypeLabel(type)} · {new Date(material.uploaded_at).toLocaleString("zh-CN")}</div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <SecondaryButton className="h-9 px-3" onClick={() => onPreview(material)}>预览</SecondaryButton>
-        <SecondaryButton className="h-9 px-3 text-rose-600 hover:border-rose-200 hover:bg-rose-50" onClick={onDelete}>
+      <div className="flex shrink-0 items-center gap-2 opacity-100 transition duration-150 sm:translate-x-2 sm:opacity-0 sm:group-hover:translate-x-0 sm:group-hover:opacity-100 sm:group-focus-within:translate-x-0 sm:group-focus-within:opacity-100">
+        <SecondaryButton className="h-9 bg-white/90 px-3 shadow-sm shadow-slate-950/0 group-hover:shadow-slate-950/5" onClick={() => onPreview(material)}>预览</SecondaryButton>
+        <SecondaryButton className="h-9 w-9 border-rose-100 bg-white/90 p-0 text-rose-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600" onClick={onDelete}>
           <Trash2 size={15} />
         </SecondaryButton>
       </div>

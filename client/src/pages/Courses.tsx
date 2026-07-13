@@ -20,7 +20,6 @@ import {
   EmptyState,
   ErrorState,
   IconBadge,
-  MetricCard,
   PageShell,
   PrimaryButton,
   SecondaryButton,
@@ -82,6 +81,7 @@ export default function Courses() {
   );
   const teacherCount = courses.filter((course) => course.teacher?.trim()).length;
   const introCount = courses.filter((course) => course.intro?.trim()).length;
+  const introRate = courses.length ? Math.round((introCount / courses.length) * 100) : 0;
 
   function toggleFavoriteCourse(courseId: number) {
     setFavoriteCourseIds((prev) => {
@@ -143,17 +143,15 @@ export default function Courses() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <MetricCard label="课程数量" value={courses.length} hint="当前归档课程" icon={BookOpen} tone="blue" />
-        <MetricCard label="学期分布" value={semesters.length || "未设置"} hint="用于筛选课程阶段" icon={Layers3} tone="violet" />
-        <MetricCard label="简介完整度" value={`${courses.length ? Math.round((introCount / courses.length) * 100) : 0}%`} hint={`${teacherCount} 门已设置教师`} icon={GraduationCap} tone="emerald" progress={courses.length ? Math.round((introCount / courses.length) * 100) : 0} />
-      </div>
-
       {!isLoading && courses.length > 0 && (
         <CourseShowcase
           courses={showcaseCourses}
           favoriteCourses={favoriteCourses}
+          filteredCount={filteredCourses.length}
           total={courses.length}
+          semesterCount={semesters.length}
+          introRate={introRate}
+          teacherCount={teacherCount}
           onPrefetch={(courseId) => {
             preloadPage("courseDetail");
             prefetchCourse(courseId);
@@ -241,15 +239,22 @@ export default function Courses() {
 function CourseShowcase({
   courses,
   favoriteCourses,
+  filteredCount,
   total,
+  semesterCount,
+  introRate,
+  teacherCount,
   onPrefetch,
 }: {
   courses: any[];
   favoriteCourses: any[];
+  filteredCount: number;
   total: number;
+  semesterCount: number;
+  introRate: number;
+  teacherCount: number;
   onPrefetch: (courseId: number) => void;
 }) {
-  const teacherCount = courses.filter((course) => course.teacher?.trim()).length;
   const folderItems = favoriteCourses.length
     ? favoriteCourses.map((course) => (
         <FavoriteCoursePaper
@@ -277,19 +282,26 @@ function CourseShowcase({
               当前筛选摘要
             </div>
             <h2 className="mt-4 max-w-2xl text-2xl font-semibold tracking-tight">先进入最相关的课程，再处理资料和讨论。</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
-              当前筛选下有 {courses.length} 门课程，完整课程库共有 {total} 门。给常用课程点星标后，会固定出现在右侧收藏文件夹里。
-            </p>
           </div>
-          <div className="mt-8 flex flex-wrap gap-2 text-xs text-slate-500">
-            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5">筛选结果 {courses.length}</span>
-            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5">已设教师 {teacherCount}</span>
-            <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1.5">完整课程 {total}</span>
+          <div className="mt-6 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
+            <CourseHeroStat label="课程数量" value={total} hint={`当前筛选 ${filteredCount}`} />
+            <CourseHeroStat label="学期分布" value={semesterCount || "未设置"} hint="用于筛选课程阶段" />
+            <CourseHeroStat label="简介完整度" value={`${introRate}%`} hint={`${teacherCount} 门已设置教师`} />
           </div>
         </div>
       </SpotlightCard>
 
       <FavoriteCourseDock favoriteCourses={favoriteCourses} folderItems={folderItems} />
+    </div>
+  );
+}
+
+function CourseHeroStat({ label, value, hint }: { label: string; value: ReactNode; hint: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/68 px-4 py-3 shadow-sm backdrop-blur">
+      <div className="text-xs font-medium text-slate-400">{label}</div>
+      <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{value}</div>
+      <div className="mt-1 truncate text-xs text-slate-500">{hint}</div>
     </div>
   );
 }
