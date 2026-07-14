@@ -45,6 +45,7 @@ import {
 import { preloadPage } from "../pageLoaders";
 import SpotlightCard from "../components/SpotlightCard";
 import MarkdownRenderer from "../components/MarkdownRenderer";
+import { formatBeijingDateTime } from "../utils/time";
 
 function getFileType(filename: string): "image" | "pdf" | "video" | "audio" | "text" | "other" {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
@@ -91,7 +92,13 @@ export default function CourseDetail() {
     toast.start("上传中...");
     try {
       const ext = file.name.split(".").pop() || "other";
-      await api.uploadMaterial(courseId, file, ext, uploadCategory, uploadDueDate || null);
+      await api.uploadMaterial(
+        courseId,
+        file,
+        ext,
+        uploadCategory,
+        uploadCategory === "assignment" ? uploadDueDate || null : null,
+      );
       setUploadFile(null);
       setUploadCategory("other");
       setUploadDueDate("");
@@ -165,6 +172,8 @@ export default function CourseDetail() {
     setUploadOpen(open);
     if (!open) {
       setUploadFile(null);
+      setUploadCategory("other");
+      setUploadDueDate("");
     }
   }
 
@@ -299,12 +308,16 @@ export default function CourseDetail() {
                   <div className="overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
                     <FileUpload onChange={(files) => setUploadFile(files[0] ?? null)} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className={`grid gap-3 ${uploadCategory === "assignment" ? "grid-cols-2" : "grid-cols-1"}`}>
                     <label className="block">
                       <span className="mb-1.5 block text-xs font-medium text-slate-500">分类</span>
                       <select
                         value={uploadCategory}
-                        onChange={(e) => setUploadCategory(e.target.value)}
+                        onChange={(e) => {
+                          const nextCategory = e.target.value;
+                          setUploadCategory(nextCategory);
+                          if (nextCategory !== "assignment") setUploadDueDate("");
+                        }}
                         className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400"
                       >
                         <option value="other">其他资料</option>
@@ -313,16 +326,18 @@ export default function CourseDetail() {
                         <option value="lab">实验指导</option>
                       </select>
                     </label>
-                    <label className="block">
-                      <span className="mb-1.5 block text-xs font-medium text-slate-500">截止日期</span>
-                      <input
-                        type="date"
-                        value={uploadDueDate}
-                        onChange={(e) => setUploadDueDate(e.target.value)}
-                        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400"
-                        placeholder="作业/实验截止日期"
-                      />
-                    </label>
+                    {uploadCategory === "assignment" && (
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-medium text-slate-500">截止日期</span>
+                        <input
+                          type="date"
+                          value={uploadDueDate}
+                          onChange={(e) => setUploadDueDate(e.target.value)}
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400"
+                          placeholder="课程作业截止日期"
+                        />
+                      </label>
+                    )}
                   </div>
                   <DialogFooter className="gap-3 pt-1 sm:space-x-0">
                     <SecondaryButton type="button" onClick={() => setUploadOpen(false)}>取消</SecondaryButton>
@@ -859,7 +874,7 @@ function MaterialRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium text-slate-900 transition-colors group-hover:text-slate-950">{material.filename}</div>
-        <div className="mt-0.5 text-xs text-slate-400 transition-colors group-hover:text-slate-500">{fileTypeLabel(type)} · {new Date(material.uploaded_at).toLocaleString("zh-CN")}</div>
+        <div className="mt-0.5 text-xs text-slate-400 transition-colors group-hover:text-slate-500">{fileTypeLabel(type)} · {formatBeijingDateTime(material.uploaded_at)}</div>
       </div>
       <div className="flex shrink-0 items-center gap-2 opacity-100 transition duration-150 sm:translate-x-2 sm:opacity-0 sm:group-hover:translate-x-0 sm:group-hover:opacity-100 sm:group-focus-within:translate-x-0 sm:group-focus-within:opacity-100">
         <SecondaryButton className="h-9 bg-white/90 px-3 shadow-sm shadow-slate-950/0 group-hover:shadow-slate-950/5" onClick={() => onPreview(material)}>预览</SecondaryButton>

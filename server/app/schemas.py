@@ -92,6 +92,10 @@ class MaterialOut(BaseModel):
     uploaded_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("uploaded_at")
+    def serialize_uploaded_at(self, value: datetime) -> str:
+        return to_cn_iso(value)
+
 class MaterialUpdate(BaseModel):
     filename: Optional[str] = Field(default=None, min_length=1, max_length=255)
     type: Optional[str] = Field(default=None, max_length=32)
@@ -113,6 +117,10 @@ class MaterialSearchResult(BaseModel):
     preview: str = ""
     matches: list[str] = []
     score: float = 0.0
+
+    @field_serializer("uploaded_at")
+    def serialize_uploaded_at(self, value: datetime) -> str:
+        return to_cn_iso(value)
 
 class ChatMessageIn(BaseModel):
     content: str

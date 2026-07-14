@@ -152,8 +152,9 @@ def upload(
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
+    normalized_category = (category or "other").strip() or "other"
     parsed_due: datetime | None = None
-    if due_date:
+    if normalized_category == "assignment" and due_date:
         try:
             parsed_due = datetime.fromisoformat(due_date)
         except ValueError:
@@ -163,7 +164,7 @@ def upload(
         course_id=course.id,
         filename=file.filename or "upload.bin",
         type=type,
-        category=category,
+        category=normalized_category,
         due_date=parsed_due,
         content_path=dest,
     )
@@ -222,8 +223,10 @@ def update_material(
         material.type = data["type"].strip() or "other"
     if "category" in data and data["category"] is not None:
         material.category = data["category"].strip() or "other"
+        if material.category != "assignment":
+            material.due_date = None
     if "due_date" in data:
-        material.due_date = data["due_date"]
+        material.due_date = data["due_date"] if material.category == "assignment" else None
 
     db.commit()
     db.refresh(material)
