@@ -1,5 +1,7 @@
-"""资料检索 — 全文关键词匹配 + PDF 解析，为 LLM 提供课程资料上下文。"""
+"""资料检索 — 向量相似度检索 + PDF 解析，为 LLM 提供课程资料上下文。"""
 
+import hashlib
+import math
 import re
 from typing import Any, List
 
@@ -8,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Course, Material
 from app.schemas import Snippet
+from app.services.embedding import embedding_client
 
 TEXT_EXTENSIONS = {
     ".txt", ".md", ".py", ".js", ".ts", ".tsx", ".jsx",
@@ -26,6 +29,14 @@ TOP_CHUNKS_PER_FILE = 3
 # 总共最多返回几个段落
 MAX_TOTAL_CHUNKS = 6
 MAX_PREVIEW_CHARS = 220
+VECTOR_DIM = 4096
+MIN_VECTOR_SCORE = 0.03
+VECTOR_STOP_PHRASES = [
+    "什么是", "为什么", "怎么", "如何", "请问", "解释一下", "解释",
+    "介绍一下", "介绍", "在哪里出现过", "哪里出现过", "出现在哪里",
+    "这个", "那个", "一下", "？", "?", "，", ",", "。", ".",
+]
+Vector = dict[int, float] | list[float]
 
 
 def _read_text_file(filepath: str) -> str:
@@ -116,22 +127,92 @@ def _split_chunks(text: str) -> List[str]:
 
 
 def _score_chunk(chunk: str, query: str) -> float:
-    """简单的 TF 得分：query 中关键词在 chunk 中出现的次数。"""
+    """关键词得分，仅作为向量检索分数相近时的辅助排序信号。"""
     q_words = set(_query_terms(query))
     if not q_words:
         return 0.0
     chunk_lower = chunk.lower()
-    score = sum(chunk_lower.count(w) for w in q_words)
-    return score
+    return float(sum(chunk_lower.count(w) for w in q_words))
+
+
+def _char_ngrams(text: str, min_n: int = 2, max_n: int = 3) -> list[str]:
+    chars = [char for char in text if "\u4e00" <= char <= "\u9fff"]
+    grams: list[str] = []
+    for n in range(min_n, max_n + 1):
+        if len(chars) >= n:
+            grams.extend("".join(chars[i:i + n]) for i in range(len(chars) - n + 1))
+    return grams
+
+
+def _vector_terms(text: str) -> list[str]:
+    """生成向量化用的词条：英文按词，中文按 2-3 字 ngram。"""
+    lowered = text.lower()
+    for phrase in VECTOR_STOP_PHRASES:
+        lowered = lowered.replace(phrase, " ")
+    english_terms = re.findall(r"[a-z0-9_\-]{2,}", lowered)
+    chinese_terms = _char_ngrams(lowered)
+    return english_terms + chinese_terms
+
+
+def _hash_index(term: str) -> int:
+    digest = hashlib.blake2b(term.encode("utf-8"), digest_size=8).digest()
+    return int.from_bytes(digest, "big") % VECTOR_DIM
+
+
+def _vectorize(text: str) -> dict[int, float]:
+    """把文本转成归一化的哈希词向量，用于余弦相似度检索。"""
+    vector: dict[int, float] = {}
+    for term in _vector_terms(text):
+        index = _hash_index(term)
+        vector[index] = vector.get(index, 0.0) + 1.0
+
+    if not vector:
+        return {}
+
+    # log TF 降低长段落里重复词对相似度的垄断。
+    for index, value in list(vector.items()):
+        vector[index] = 1.0 + math.log(value)
+
+    norm = math.sqrt(sum(value * value for value in vector.values()))
+    if norm == 0:
+        return {}
+    return {index: value / norm for index, value in vector.items()}
+
+
+def _normalize_dense_vector(vector: list[float]) -> list[float]:
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm == 0:
+        return []
+    return [value / norm for value in vector]
+
+
+def _semantic_vectors(texts: list[str]) -> list[Vector]:
+    """优先使用 embedding 模型，未配置或调用失败时回退到本地哈希向量。"""
+    model_vectors = embedding_client.embed_texts(texts)
+    if model_vectors:
+        return [_normalize_dense_vector(vector) for vector in model_vectors]
+    return [_vectorize(text) for text in texts]
+
+
+def _cosine_similarity(left: Vector, right: Vector) -> float:
+    if not left or not right:
+        return 0.0
+    if isinstance(left, list) and isinstance(right, list):
+        return sum(l_value * r_value for l_value, r_value in zip(left, right))
+    if isinstance(left, list) or isinstance(right, list):
+        return 0.0
+    if len(left) > len(right):
+        left, right = right, left
+    return sum(value * right.get(index, 0.0) for index, value in left.items())
+
+
+def _vector_score_chunk(chunk_vector: Vector, query_vector: Vector) -> float:
+    return _cosine_similarity(chunk_vector, query_vector)
 
 
 def _query_terms(query: str) -> list[str]:
     normalized = query.lower()
-    for word in [
-        "什么是", "为什么", "怎么", "如何", "请问", "解释一下", "解释",
-        "介绍一下", "介绍", "在哪里出现过", "哪里出现过", "出现在哪里",
-        "这个", "那个", "一下", "？", "?", "，", ",", "。", ".",
-    ]:
+    for word in VECTOR_STOP_PHRASES:
         normalized = normalized.replace(word, " ")
     terms = re.findall(r"[A-Za-z0-9_\-]+|[\u4e00-\u9fff]{2,}", normalized)
     stopwords = {
@@ -172,12 +253,13 @@ def _location_label(page_number: int | None, chunk_index: int) -> str:
 
 
 def search(course_id: int, query: str, k: int = 3, db: Session | None = None) -> List[Snippet]:
-    """全文关键词检索。
+    """课程资料向量检索。
 
     1. 遍历课程中所有资料文件
     2. 对每个文件提取全文（txt/md/pdf 等）
-    3. 将内容切成段落，按与 query 的关键词匹配得分排序
-    4. 返回 top-k 个最相关片段
+    3. 使用 embedding 模型向量化 query 和段落文本（未配置时回退本地哈希向量）
+    4. 按余弦相似度排序，关键词命中只作为展示和轻量辅助排序
+    5. 返回 top-k 个最相关片段
     """
     if db is None:
         return []
@@ -191,8 +273,8 @@ def search(course_id: int, query: str, k: int = 3, db: Session | None = None) ->
     course = db.query(Course).filter(Course.id == course_id).first()
     course_name = course.name if course else ""
 
-    # 收集命中的资料位置
-    ranked: List[dict[str, Any]] = []
+    # 收集候选资料位置
+    candidates: List[dict[str, Any]] = []
 
     for m in materials:
         blocks = _read_located_blocks(m)
@@ -200,23 +282,39 @@ def search(course_id: int, query: str, k: int = 3, db: Session | None = None) ->
             continue
         for index, block in enumerate(blocks, start=1):
             chunk = block["text"]
-            score = _score_chunk(chunk, query)
-            if score > 0:
-                matches = _matched_terms(chunk, query)
+            candidates.append(
+                {
+                    "material_id": m.id,
+                    "filename": m.filename,
+                    "chunk_index": index,
+                    "page_number": block.get("page_number"),
+                    "text": chunk,
+                }
+            )
+
+    ranked: List[dict[str, Any]] = []
+    if candidates:
+        vectors = _semantic_vectors([query] + [item["text"] for item in candidates])
+        query_vector = vectors[0]
+        chunk_vectors = vectors[1:]
+
+        for item, chunk_vector in zip(candidates, chunk_vectors):
+            vector_score = _vector_score_chunk(chunk_vector, query_vector)
+            keyword_score = _score_chunk(item["text"], query)
+            score = vector_score + min(keyword_score, 3.0) * 0.02
+            if score >= MIN_VECTOR_SCORE:
+                matches = _matched_terms(item["text"], query)
                 ranked.append(
                     {
-                        "material_id": m.id,
-                        "filename": m.filename,
-                        "chunk_index": index,
-                        "page_number": block.get("page_number"),
-                        "text": chunk,
+                        **item,
                         "score": score,
+                        "vector_score": vector_score,
                         "matches": matches,
                     }
                 )
 
-    # 按得分降序
-    ranked.sort(key=lambda item: item["score"], reverse=True)
+    # 按向量相似度降序，辅助分只在相似度接近时参与排序。
+    ranked.sort(key=lambda item: (item["vector_score"], item["score"]), reverse=True)
 
     # 每个文件最多取 TOP_CHUNKS_PER_FILE 段
     seen_files: dict[str, int] = {}

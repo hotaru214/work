@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from main import app
 from app.database import Base, engine
 from app.schemas import Snippet
+from app.services import retrieval
+from app.services.retrieval import _cosine_similarity, _semantic_vectors, _vectorize
 
 client = TestClient(app)
 
@@ -72,3 +74,29 @@ def test_snippet_citation_shape():
     )
     assert snippet.course_name == "高等数学"
     assert snippet.chunk_index == 3
+
+
+def test_vector_retrieval_scores_related_text_higher():
+    query = _vectorize("什么是 Shannon 信息熵")
+    related = _vectorize("Shannon 信息熵用于衡量消息的不确定性，是信息论中的核心概念。")
+    unrelated = _vectorize("高等数学复习需要重点掌握极限、导数、积分和级数。")
+
+    assert _cosine_similarity(query, related) > _cosine_similarity(query, unrelated)
+    assert _cosine_similarity(query, related) >= 0.03
+    assert _cosine_similarity(query, unrelated) < 0.03
+
+
+def test_embedding_model_vectors_are_used_when_available(monkeypatch):
+    def fake_embed_texts(texts):
+        assert texts == ["问题", "相关资料", "无关资料"]
+        return [
+            [1.0, 0.0, 0.0],
+            [0.9, 0.1, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+
+    monkeypatch.setattr(retrieval.embedding_client, "embed_texts", fake_embed_texts)
+
+    query_vector, related_vector, unrelated_vector = _semantic_vectors(["问题", "相关资料", "无关资料"])
+
+    assert _cosine_similarity(query_vector, related_vector) > _cosine_similarity(query_vector, unrelated_vector)
